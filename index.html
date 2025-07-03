@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Lifting Plan Monitor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script defer src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      canvas {
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useRef, useEffect } = React;
+
+      const LiftingPlanMonitor = () => {
+        const [screen, setScreen] = useState('setup');
+        const [equipment, setEquipment] = useState({ model: '', maxCapacity: '', maxRadius: '', minRadius: '' });
+        const [load, setLoad] = useState({ weight: '', description: '' });
+        const [crane, setCrane] = useState({ radius: 5, angle: 0 });
+        const canvasRef = useRef(null);
+        const dragging = useRef(false);
+
+        const capacityTable = {
+          3: 25000, 4: 22000, 5: 18000, 6: 15000,
+          7: 12500, 8: 10500, 9: 9000, 10: 7800,
+          12: 6200, 15: 4
