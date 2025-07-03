@@ -32,4 +32,163 @@
         const capacityTable = {
           3: 25000, 4: 22000, 5: 18000, 6: 15000,
           7: 12500, 8: 10500, 9: 9000, 10: 7800,
-          12: 6200, 15: 4
+          12: 6200, 15: 4500, 18: 3200, 20: 2800,
+          25: 2000, 30: 1500
+        };
+
+        const getCapacityAtRadius = (radius) => {
+          const radiusInt = Math.round(radius);
+          if (capacityTable[radiusInt]) return capacityTable[radiusInt];
+          const keys = Object.keys(capacityTable).map(Number).sort((a, b) => a - b);
+          const low = keys.filter(k => k <= radius).pop();
+          const high = keys.find(k => k >= radius);
+          if (!low) return capacityTable[keys[0]];
+          if (!high) return capacityTable[keys[keys.length - 1]];
+          const r = (radius - low) / (high - low);
+          return capacityTable[low] - (capacityTable[low] - capacityTable[high]) * r;
+        };
+
+        const getLoadStatus = () => {
+          const cap = getCapacityAtRadius(crane.radius);
+          const peso = parseFloat(load.weight) || 0;
+          if (peso === 0) return { status: 'info', message: 'Aguardando peso da carga' };
+          const perc = (peso / cap) * 100;
+          if (perc > 100) return { status: 'danger', message: `SOBRECARGA! ${perc.toFixed(1)}%` };
+          if (perc >= 75) return { status: 'warning', message: `ATENÇÃO! ${perc.toFixed(1)}%` };
+          return { status: 'safe', message: `Seguro - ${perc.toFixed(1)}%` };
+        };
+
+        const drawCrane = () => {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const ctx = canvas.getContext('2d');
+          const w = canvas.width = canvas.clientWidth;
+          const h = canvas.height = 400;
+          const cx = w / 2;
+          const cy = h - 80;
+          const scale = 8;
+
+          ctx.clearRect(0, 0, w, h);
+          ctx.fillStyle = '#4B5563';
+          ctx.fillRect(cx - 30, cy - 20, 60, 40);
+          ctx.fillStyle = '#6B7280';
+          ctx.fillRect(cx - 8, cy - 100, 16, 100);
+          const len = crane.radius * scale;
+          const ang = (crane.angle - 30) * Math.PI / 180;
+          const endX = cx + Math.cos(ang) * len;
+          const endY = cy - 100 - Math.sin(ang) * len;
+
+          ctx.strokeStyle = '#DC2626';
+          ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(cx, cy - 100); ctx.lineTo(endX, endY); ctx.stroke();
+
+          ctx.setLineDash([5, 5]);
+          ctx.strokeStyle = '#374151';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(endX, endY); ctx.lineTo(endX, endY + 30); ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = '#1F2937';
+          ctx.fillRect(endX - 5, endY + 30, 10, 15);
+
+          ctx.strokeStyle = '#E5E7EB';
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.arc(cx, cy, crane.radius * scale, 0, 2 * Math.PI); ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = '#111';
+          ctx.font = '14px Arial';
+          ctx.fillText(`Raio: ${crane.radius.toFixed(1)}m`, 10, 30);
+          ctx.fillText(`Capacidade: ${(getCapacityAtRadius(crane.radius) / 1000).toFixed(1)}t`, 10, 50);
+        };
+
+        useEffect(() => { drawCrane(); }, [crane]);
+
+        const updateCrane = (e) => {
+          const canvas = canvasRef.current;
+          const rect = canvas.getBoundingClientRect();
+          const cx = canvas.width / 2;
+          const cy = canvas.height - 80;
+          const mx = (e.clientX || e.touches[0].clientX) - rect.left;
+          const my = (e.clientY || e.touches[0].clientY) - rect.top;
+          const dx = mx - cx;
+          const dy = cy - 100 - my;
+          const radius = Math.sqrt(dx*dx + dy*dy) / 8;
+          const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+          setCrane({ radius: Math.min(30, Math.max(3, radius)), angle: Math.min(60, Math.max(-60, angle)) });
+        };
+
+        const status = getLoadStatus();
+
+        if (screen === 'setup') {
+          return (
+            <div className="p-4">
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow p-6 space-y-6">
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">Configuração do Guindaste</h1>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input placeholder="Modelo do Guindaste" className="input" value={equipment.model} onChange={e => setEquipment({ ...equipment, model: e.target.value })} />
+                  <input type="number" placeholder="Capacidade Máxima (kg)" className="input" value={equipment.maxCapacity} onChange={e => setEquipment({ ...equipment, maxCapacity: e.target.value })} />
+                  <input type="number" placeholder="Raio Mínimo (m)" className="input" value={equipment.minRadius} onChange={e => setEquipment({ ...equipment, minRadius: e.target.value })} />
+                  <input type="number" placeholder="Raio Máximo (m)" className="input" value={equipment.maxRadius} onChange={e => setEquipment({ ...equipment, maxRadius: e.target.value })} />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input type="number" placeholder="Peso da Carga (kg)" className="input" value={load.weight} onChange={e => setLoad({ ...load, weight: e.target.value })} />
+                  <input placeholder="Descrição da Carga" className="input" value={load.description} onChange={e => setLoad({ ...load, description: e.target.value })} />
+                </div>
+
+                <button disabled={!equipment.model || !load.weight} onClick={() => setScreen('monitor')} className="bg-blue-600 text-white py-3 px-6 rounded-lg w-full hover:bg-blue-700 disabled:opacity-50">
+                  Prosseguir
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="p-4">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <div className="xl:col-span-2 bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-bold mb-2">Visualização do Guindaste</h2>
+                <p className="text-sm text-gray-600 mb-2">Clique e arraste para ajustar o raio da lança</p>
+                <canvas ref={canvasRef}
+                  className="w-full border rounded-md"
+                  onMouseDown={() => dragging.current = true}
+                  onMouseMove={e => dragging.current && updateCrane(e)}
+                  onMouseUp={() => dragging.current = false}
+                  onMouseLeave={() => dragging.current = false}
+                  onTouchStart={e => { dragging.current = true; updateCrane(e); }}
+                  onTouchMove={e => dragging.current && updateCrane(e)}
+                  onTouchEnd={() => dragging.current = false}
+                />
+              </div>
+
+              <div className="space-y-6">
+                <div className={`p-4 rounded-xl shadow text-sm ${status.status === 'danger' ? 'bg-red-100 text-red-800' : status.status === 'warning' ? 'bg-yellow-100 text-yellow-800' : status.status === 'safe' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                  <strong>Status:</strong> {status.message}
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow">
+                  <h3 className="font-bold mb-2">Dados</h3>
+                  <p><strong>Raio:</strong> {crane.radius.toFixed(1)} m</p>
+                  <p><strong>Capacidade:</strong> {(getCapacityAtRadius(crane.radius) / 1000).toFixed(1)} t</p>
+                  <p><strong>Peso da carga:</strong> {(parseFloat(load.weight || 0) / 1000).toFixed(1)} t</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<LiftingPlanMonitor />);
+    </script>
+
+    <style>
+      .input {
+        @apply px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500;
+        width: 100%;
+      }
+    </style>
+  </body>
+</html>
