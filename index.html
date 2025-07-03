@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lifting Plan Monitor</title>
+  <title>Lifting Plan Monitor Professional</title>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -11,6 +11,18 @@
   <style>
     canvas {
       touch-action: none;
+      cursor: crosshair;
+    }
+    .status-danger { animation: pulse 2s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .grid-background {
+      background-image: 
+        linear-gradient(to right, #f1f5f9 1px, transparent 1px),
+        linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
+      background-size: 20px 20px;
     }
   </style>
 </head>
@@ -22,153 +34,614 @@
 
     const App = () => {
       const [screen, setScreen] = useState('setup');
-      const [equipment, setEquipment] = useState({ model: '', maxCapacity: '', minRadius: '', maxRadius: '' });
-      const [load, setLoad] = useState({ weight: '', description: '' });
-      const [crane, setCrane] = useState({ radius: 5, angle: 0 });
+      const [equipment, setEquipment] = useState({ 
+        model: 'Liebherr LTM 1100-5.2', 
+        maxCapacity: '100000', 
+        minRadius: '3', 
+        maxRadius: '30' 
+      });
+      const [load, setLoad] = useState({ weight: '15000', description: 'Viga metálica estrutural' });
+      const [crane, setCrane] = useState({ radius: 8, angle: 15 });
+      const [warning, setWarning] = useState(null);
+      const [isDragging, setIsDragging] = useState(false);
       const canvasRef = useRef(null);
-      const dragging = useRef(false);
 
+      // Tabela de capacidades mais realista e detalhada
       const capacityTable = {
-        3: 25000, 4: 22000, 5: 18000, 6: 15000,
-        7: 12500, 8: 10500, 9: 9000, 10: 7800,
-        12: 6200, 15: 4500, 18: 3200, 20: 2800,
-        25: 2000, 30: 1500
+        3: 100000, 3.5: 85000, 4: 72000, 4.5: 62000, 5: 54000, 5.5: 48000,
+        6: 43000, 6.5: 39000, 7: 35000, 7.5: 32000, 8: 29000, 8.5: 26500,
+        9: 24500, 9.5: 22800, 10: 21200, 11: 18500, 12: 16200, 13: 14300,
+        14: 12700, 15: 11400, 16: 10300, 17: 9400, 18: 8600, 19: 7900,
+        20: 7300, 22: 6300, 24: 5500, 26: 4800, 28: 4200, 30: 3700
       };
 
       const getCapacityAtRadius = (radius) => {
-        const radiusInt = Math.round(radius);
-        if (capacityTable[radiusInt]) return capacityTable[radiusInt];
+        const radiusRounded = Math.round(radius * 2) / 2; // Arredonda para 0.5
+        if (capacityTable[radiusRounded]) return capacityTable[radiusRounded];
+        
         const keys = Object.keys(capacityTable).map(Number).sort((a, b) => a - b);
         const low = keys.filter(k => k <= radius).pop();
         const high = keys.find(k => k >= radius);
+        
         if (!low) return capacityTable[keys[0]];
         if (!high) return capacityTable[keys[keys.length - 1]];
-        const r = (radius - low) / (high - low);
-        return capacityTable[low] - (capacityTable[low] - capacityTable[high]) * r;
+        if (low === high) return capacityTable[low];
+        
+        const ratio = (radius - low) / (high - low);
+        return Math.round(capacityTable[low] - (capacityTable[low] - capacityTable[high]) * ratio);
       };
 
       const getLoadStatus = () => {
         const cap = getCapacityAtRadius(crane.radius);
         const peso = parseFloat(load.weight) || 0;
-        if (peso === 0) return { status: 'info', message: 'Aguardando peso da carga' };
+        if (peso === 0) return { status: 'info', message: 'Aguardando peso da carga', percentage: 0 };
         const perc = (peso / cap) * 100;
-        if (perc > 100) return { status: 'danger', message: `SOBRECARGA! ${perc.toFixed(1)}%` };
-        if (perc >= 75) return { status: 'warning', message: `ATENÇÃO! ${perc.toFixed(1)}%` };
-        return { status: 'safe', message: `Seguro - ${perc.toFixed(1)}%` };
+        if (perc > 100) return { status: 'danger', message: `⚠️ SOBRECARGA CRÍTICA! ${perc.toFixed(1)}%`, percentage: perc };
+        if (perc >= 90) return { status: 'critical', message: `🔴 MUITO PERIGOSO! ${perc.toFixed(1)}%`, percentage: perc };
+        if (perc >= 75) return { status: 'warning', message: `⚠️ ATENÇÃO! ${perc.toFixed(1)}% (≥75%)`, percentage: perc };
+        if (perc >= 50) return { status: 'caution', message: `🟡 CUIDADO! ${perc.toFixed(1)}%`, percentage: perc };
+        return { status: 'safe', message: `✅ SEGURO - ${perc.toFixed(1)}%`, percentage: perc };
       };
 
       const drawCrane = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+        
         const ctx = canvas.getContext('2d');
         const w = canvas.width = canvas.clientWidth;
-        const h = canvas.height = 400;
+        const h = canvas.height = 500;
         const cx = w / 2;
         const cy = h - 80;
-        const scale = 8;
+        const scale = Math.min(w, h) / 50; // Escala adaptativa
 
         ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = '#4B5563';
-        ctx.fillRect(cx - 30, cy - 20, 60, 40);
-        ctx.fillStyle = '#6B7280';
-        ctx.fillRect(cx - 8, cy - 100, 16, 100);
 
-        const len = crane.radius * scale;
-        const ang = (crane.angle - 30) * Math.PI / 180;
-        const endX = cx + Math.cos(ang) * len;
-        const endY = cy - 100 - Math.sin(ang) * len;
+        // Fundo com grid
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(0, 0, w, h);
+        
+        // Grid de fundo
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= w; i += 20) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, h);
+          ctx.stroke();
+        }
+        for (let i = 0; i <= h; i += 20) {
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(w, i);
+          ctx.stroke();
+        }
 
-        const status = getLoadStatus().status;
-        ctx.strokeStyle = status === 'danger' ? '#DC2626' : status === 'warning' ? '#FACC15' : '#22C55E';
-        ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(cx, cy - 100); ctx.lineTo(endX, endY); ctx.stroke();
+        // Círculos de raio de trabalho
+        const radiusCircles = [5, 10, 15, 20, 25, 30];
+        radiusCircles.forEach(r => {
+          if (r <= 30) {
+            ctx.strokeStyle = r === Math.round(crane.radius) ? '#3b82f6' : '#e5e7eb';
+            ctx.lineWidth = r === Math.round(crane.radius) ? 2 : 1;
+            ctx.setLineDash(r === Math.round(crane.radius) ? [5, 5] : [2, 2]);
+            ctx.beginPath();
+            ctx.arc(cx, cy, r * scale, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Marcações de raio
+            ctx.fillStyle = '#64748b';
+            ctx.font = '12px Arial';
+            ctx.fillText(`${r}m`, cx + r * scale + 5, cy - 5);
+          }
+        });
+        ctx.setLineDash([]);
 
-        ctx.setLineDash([5, 5]);
+        // Base do guindaste (mais realista)
+        const baseWidth = 120;
+        const baseHeight = 30;
+        
+        // Sombra da base
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(cx - baseWidth/2 + 3, cy - baseHeight/2 + 3, baseWidth, baseHeight);
+        
+        // Base principal
+        ctx.fillStyle = '#374151';
+        ctx.fillRect(cx - baseWidth/2, cy - baseHeight/2, baseWidth, baseHeight);
+        
+        // Detalhes da base
+        ctx.fillStyle = '#4b5563';
+        ctx.fillRect(cx - baseWidth/2 + 10, cy - baseHeight/2 + 5, baseWidth - 20, baseHeight - 10);
+        
+        // Esteiras/rodas
+        const wheelPositions = [-45, -15, 15, 45];
+        wheelPositions.forEach(pos => {
+          ctx.beginPath();
+          ctx.arc(cx + pos, cy + 20, 12, 0, 2 * Math.PI);
+          ctx.fillStyle = '#1f2937';
+          ctx.fill();
+          ctx.strokeStyle = '#6b7280';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+
+        // Torre do guindaste
+        const towerHeight = 150;
+        const towerWidth = 20;
+        const towerBaseY = cy - towerHeight;
+        
+        // Sombra da torre
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(cx - towerWidth/2 + 2, towerBaseY + 2, towerWidth, towerHeight);
+        
+        // Torre principal
+        ctx.fillStyle = '#6b7280';
+        ctx.fillRect(cx - towerWidth/2, towerBaseY, towerWidth, towerHeight);
+        
+        // Seções da torre
+        ctx.fillStyle = '#4b5563';
+        for (let i = 0; i < towerHeight; i += 25) {
+          ctx.fillRect(cx - towerWidth/2 + 2, towerBaseY + i, towerWidth - 4, 20);
+        }
+        
+        // Contrapeso
+        ctx.fillStyle = '#2d3748';
+        ctx.fillRect(cx - 35, towerBaseY + 20, 70, 25);
+        ctx.fillStyle = '#4a5568';
+        ctx.fillRect(cx - 30, towerBaseY + 22, 60, 21);
+
+        // Cabine do operador
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(cx - 15, towerBaseY + 50, 30, 20);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx - 15, towerBaseY + 50, 30, 20);
+        
+        // Janelas da cabine
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(cx - 12, towerBaseY + 53, 8, 6);
+        ctx.fillRect(cx + 4, towerBaseY + 53, 8, 6);
+
+        // Ponto de articulação
+        ctx.beginPath();
+        ctx.arc(cx, towerBaseY - 10, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = '#9ca3af';
+        ctx.fill();
         ctx.strokeStyle = '#374151';
         ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(endX, endY); ctx.lineTo(endX, endY + 30); ctx.stroke();
+        ctx.stroke();
+
+        // Cálculos da lança
+        const boomLength = crane.radius * scale;
+        const boomAngle = (crane.angle - 20) * Math.PI / 180;
+        const boomStartX = cx;
+        const boomStartY = towerBaseY - 10;
+        const boomEndX = cx + Math.cos(boomAngle) * boomLength;
+        const boomEndY = towerBaseY - 10 - Math.sin(boomAngle) * boomLength;
+
+        // Lança principal
+        const status = getLoadStatus();
+        let boomColor = '#10b981'; // Verde padrão
+        if (status.status === 'danger' || status.status === 'critical') boomColor = '#dc2626';
+        else if (status.status === 'warning') boomColor = '#f59e0b';
+        else if (status.status === 'caution') boomColor = '#eab308';
+        
+        // Sombra da lança
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(boomStartX + 2, boomStartY + 2);
+        ctx.lineTo(boomEndX + 2, boomEndY + 2);
+        ctx.stroke();
+        
+        // Lança principal
+        ctx.strokeStyle = boomColor;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(boomStartX, boomStartY);
+        ctx.lineTo(boomEndX, boomEndY);
+        ctx.stroke();
+
+        // Estrutura treliçada da lança
+        ctx.strokeStyle = '#4b5563';
+        ctx.lineWidth = 2;
+        const segments = 12;
+        for (let i = 0; i <= segments; i++) {
+          const t = i / segments;
+          const x = boomStartX + (boomEndX - boomStartX) * t;
+          const y = boomStartY + (boomEndY - boomStartY) * t;
+          
+          if (i % 2 === 0) {
+            ctx.beginPath();
+            ctx.moveTo(x - 4, y - 4);
+            ctx.lineTo(x + 4, y + 4);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x - 4, y + 4);
+            ctx.lineTo(x + 4, y - 4);
+            ctx.stroke();
+          }
+        }
+
+        // Cabo principal
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 3;
         ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(boomEndX, boomEndY);
+        ctx.lineTo(boomEndX, boomEndY + 50);
+        ctx.stroke();
 
-        ctx.fillStyle = '#1F2937';
-        ctx.fillRect(endX - 5, endY + 30, 10, 15);
+        // Gancho
+        ctx.strokeStyle = '#1f2937';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(boomEndX, boomEndY + 60, 8, Math.PI * 0.1, Math.PI * 1.4);
+        ctx.stroke();
+        
+        // Carga (se houver)
+        if (parseFloat(load.weight) > 0) {
+          const loadSize = Math.min(40, Math.max(15, Math.sqrt(parseFloat(load.weight)) / 50));
+          ctx.fillStyle = status.status === 'danger' || status.status === 'critical' ? '#dc2626' : '#f59e0b';
+          ctx.fillRect(boomEndX - loadSize/2, boomEndY + 70, loadSize, loadSize);
+          ctx.strokeStyle = '#374151';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(boomEndX - loadSize/2, boomEndY + 70, loadSize, loadSize);
+        }
 
-        ctx.strokeStyle = '#E5E7EB';
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.arc(cx, cy, crane.radius * scale, 0, 2 * Math.PI); ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = '#111';
-        ctx.font = '14px Arial';
-        ctx.fillText(`Raio: ${crane.radius.toFixed(1)}m`, 10, 30);
-        ctx.fillText(`Capacidade: ${(getCapacityAtRadius(crane.radius) / 1000).toFixed(1)}t`, 10, 50);
+        // Informações na tela
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 16px Arial';
+        ctx.fillText(`Raio: ${crane.radius.toFixed(1)}m`, 20, 30);
+        ctx.fillText(`Capacidade: ${(getCapacityAtRadius(crane.radius) / 1000).toFixed(1)}t`, 20, 55);
+        ctx.fillText(`Ângulo: ${crane.angle.toFixed(1)}°`, 20, 80);
+        
+        // Indicador de status visual
+        const statusColors = {
+          'safe': '#10b981',
+          'caution': '#eab308',
+          'warning': '#f59e0b',
+          'critical': '#dc2626',
+          'danger': '#dc2626'
+        };
+        
+        ctx.fillStyle = statusColors[status.status] || '#6b7280';
+        ctx.fillRect(w - 120, 20, 100, 8);
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillRect(w - 120, 20, 100, 8);
+        ctx.fillStyle = statusColors[status.status] || '#6b7280';
+        ctx.fillRect(w - 120, 20, Math.min(100, status.percentage), 8);
       };
 
-      useEffect(() => { drawCrane(); }, [crane, load]);
+      useEffect(() => { drawCrane(); }, [crane, load, equipment]);
 
       const updateCrane = (e) => {
         const canvas = canvasRef.current;
         const rect = canvas.getBoundingClientRect();
         const cx = canvas.width / 2;
         const cy = canvas.height - 80;
-        const mx = (e.clientX || e.touches[0].clientX) - rect.left;
-        const my = (e.clientY || e.touches[0].clientY) - rect.top;
+        const scale = Math.min(canvas.width, canvas.height) / 50;
+        
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        
+        const mx = clientX - rect.left;
+        const my = clientY - rect.top;
         const dx = mx - cx;
-        const dy = cy - 100 - my;
-        const radius = Math.sqrt(dx*dx + dy*dy) / 8;
+        const dy = (cy - 150) - my;
+        
+        const radius = Math.sqrt(dx*dx + dy*dy) / scale;
         const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-        setCrane({ radius: Math.min(30, Math.max(3, radius)), angle: Math.min(60, Math.max(-60, angle)) });
+        
+        const minRadius = parseFloat(equipment.minRadius) || 3;
+        const maxRadius = parseFloat(equipment.maxRadius) || 30;
+        
+        setCrane({ 
+          radius: Math.min(maxRadius, Math.max(minRadius, radius)), 
+          angle: Math.min(75, Math.max(-15, angle))
+        });
       };
 
       const status = getLoadStatus();
 
       return screen === 'setup' ? (
-        <div className="p-4">
-          <div className="max-w-3xl mx-auto bg-white rounded-xl shadow p-6 space-y-4">
-            <h1 className="text-2xl font-bold text-gray-800">Configuração do Guindaste</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input className="input" placeholder="Modelo do Guindaste" value={equipment.model} onChange={e => setEquipment({ ...equipment, model: e.target.value })} />
-              <input className="input" type="number" placeholder="Capacidade Máxima (kg)" value={equipment.maxCapacity} onChange={e => setEquipment({ ...equipment, maxCapacity: e.target.value })} />
-              <input className="input" type="number" placeholder="Raio Mínimo (m)" value={equipment.minRadius} onChange={e => setEquipment({ ...equipment, minRadius: e.target.value })} />
-              <input className="input" type="number" placeholder="Raio Máximo (m)" value={equipment.maxRadius} onChange={e => setEquipment({ ...equipment, maxRadius: e.target.value })} />
-              <input className="input" type="number" placeholder="Peso da Carga (kg)" value={load.weight} onChange={e => setLoad({ ...load, weight: e.target.value })} />
-              <input className="input" placeholder="Descrição da Carga" value={load.description} onChange={e => setLoad({ ...load, description: e.target.value })} />
+        <div className="p-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
+              <div className="text-center">
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">Configuração do Plano de Movimentação</h1>
+                <p className="text-gray-600">Configure os parâmetros do equipamento e da carga</p>
+              </div>
+              
+              {warning && (
+                <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+                  <strong>⚠️ Aviso:</strong> {warning}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700">Dados do Equipamento</h3>
+                  <input 
+                    className="input" 
+                    placeholder="Modelo do Guindaste" 
+                    value={equipment.model} 
+                    onChange={e => setEquipment({ ...equipment, model: e.target.value })} 
+                  />
+                  <input 
+                    className="input" 
+                    type="number" 
+                    placeholder="Capacidade Máxima (kg)" 
+                    value={equipment.maxCapacity} 
+                    onChange={e => setEquipment({ ...equipment, maxCapacity: e.target.value })} 
+                  />
+                  <input 
+                    className="input" 
+                    type="number" 
+                    placeholder="Raio Mínimo (m)" 
+                    value={equipment.minRadius} 
+                    onChange={e => setEquipment({ ...equipment, minRadius: e.target.value })} 
+                  />
+                  <input 
+                    className="input" 
+                    type="number" 
+                    placeholder="Raio Máximo (m)" 
+                    value={equipment.maxRadius} 
+                    onChange={e => setEquipment({ ...equipment, maxRadius: e.target.value })} 
+                  />
+                </div>
+                
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700">Dados da Carga</h3>
+                  <input 
+                    className="input" 
+                    type="number" 
+                    placeholder="Peso da Carga (kg)" 
+                    value={load.weight} 
+                    onChange={e => setLoad({ ...load, weight: e.target.value })} 
+                  />
+                  <input 
+                    className="input" 
+                    placeholder="Descrição da Carga" 
+                    value={load.description} 
+                    onChange={e => setLoad({ ...load, description: e.target.value })} 
+                  />
+                  
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-semibold text-blue-800 mb-2">Resumo da Configuração</h4>
+                    <p className="text-sm text-blue-700">
+                      <strong>Equipamento:</strong> {equipment.model}<br/>
+                      <strong>Carga:</strong> {(parseFloat(load.weight)/1000).toFixed(1)}t - {load.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => setScreen('monitor')}
+                disabled={!equipment.model || !load.weight}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              >
+                🚀 Iniciar Monitoramento
+              </button>
             </div>
-            <button
-              onClick={() => setScreen('monitor')}
-              disabled={!equipment.model || !load.weight}
-              className="bg-blue-600 text-white py-3 px-6 rounded-lg w-full hover:bg-blue-700 disabled:opacity-50"
-            >
-              Prosseguir
-            </button>
           </div>
         </div>
       ) : (
-        <div className="p-4">
-          <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-bold mb-2">Visualização do Guindaste</h2>
-              <p className="text-sm text-gray-600 mb-2">Clique e arraste para ajustar o raio da lança</p>
-              <canvas
-                ref={canvasRef}
-                className="w-full border rounded-md"
-                onMouseDown={() => dragging.current = true}
-                onMouseMove={e => dragging.current && updateCrane(e)}
-                onMouseUp={() => dragging.current = false}
-                onMouseLeave={() => dragging.current = false}
-                onTouchStart={e => { dragging.current = true; updateCrane(e); }}
-                onTouchMove={e => dragging.current && updateCrane(e)}
-                onTouchEnd={() => dragging.current = false}
-              />
-            </div>
-            <div className="space-y-4">
-              <div className={`p-4 rounded-xl shadow text-sm ${status.status === 'danger' ? 'bg-red-100 text-red-800' : status.status === 'warning' ? 'bg-yellow-100 text-yellow-800' : status.status === 'safe' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                <strong>Status:</strong> {status.message}
+        <div className="p-4 min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">{equipment.model}</h1>
+                  <p className="text-gray-600">{load.description} - {(parseFloat(load.weight)/1000).toFixed(1)}t</p>
+                </div>
+                <button
+                  onClick={() => setScreen('setup')}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  ⚙️ Configurar
+                </button>
               </div>
-              <div className="bg-white p-4 rounded-xl shadow">
-                <h3 className="font-bold mb-2">Dados Operacionais</h3>
-                <p><strong>Raio:</strong> {crane.radius.toFixed(1)} m</p>
-                <p><strong>Capacidade:</strong> {(getCapacityAtRadius(crane.radius) / 1000).toFixed(1)} t</p>
-                <p><strong>Carga:</strong> {(parseFloat(load.weight || 0) / 1000).toFixed(1)} t</p>
+            </div>
+            
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+              {/* Visualização Principal */}
+              <div className="xl:col-span-3">
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Visualização do Guindaste</h2>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      📱 <strong>Instruções:</strong> Clique e arraste para ajustar o raio e ângulo da lança
+                    </p>
+                  </div>
+                  <div className="grid-background rounded-lg">
+                    <canvas
+                      ref={canvasRef}
+                      className="w-full border-2 border-gray-200 rounded-lg"
+                      style={{ height: '500px' }}
+                      onMouseDown={e => { setIsDragging(true); updateCrane(e); }}
+                      onMouseMove={e => isDragging && updateCrane(e)}
+                      onMouseUp={() => setIsDragging(false)}
+                      onMouseLeave={() => setIsDragging(false)}
+                      onTouchStart={e => { setIsDragging(true); updateCrane(e); }}
+                      onTouchMove={e => { e.preventDefault(); isDragging && updateCrane(e); }}
+                      onTouchEnd={() => setIsDragging(false)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Painel de Controle */}
+              <div className="space-y-6">
+                {/* Status de Segurança */}
+                <div className={`p-6 rounded-xl shadow-lg ${
+                  status.status === 'danger' || status.status === 'critical' ? 'bg-red-100 border-2 border-red-300 status-danger' :
+                  status.status === 'warning' ? 'bg-yellow-100 border-2 border-yellow-300' :
+                  status.status === 'caution' ? 'bg-orange-100 border-2 border-orange-300' :
+                  status.status === 'safe' ? 'bg-green-100 border-2 border-green-300' :
+                  'bg-blue-100 border-2 border-blue-300'
+                }`}>
+                  <h3 className="font-bold text-lg mb-3">Status de Segurança</h3>
+                  <div className={`text-center p-3 rounded-lg font-bold ${
+                    status.status === 'danger' || status.status === 'critical' ? 'text-red-800' :
+                    status.status === 'warning' ? 'text-yellow-800' :
+                    status.status === 'caution' ? 'text-orange-800' :
+                    status.status === 'safe' ? 'text-green-800' :
+                    'text-blue-800'
+                  }`}>
+                    {status.message}
+                  </div>
+                  
+                  {/* Barra de progresso */}
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Capacidade Utilizada</span>
+                      <span>{status.percentage.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-300 ${
+                          status.status === 'danger' || status.status === 'critical' ? 'bg-red-500' :
+                          status.status === 'warning' ? 'bg-yellow-500' :
+                          status.status === 'caution' ? 'bg-orange-500' :
+                          'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min(100, status.percentage)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados Operacionais */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="font-bold text-lg mb-4">Dados Operacionais</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-gray-600">Raio Atual:</span>
+                      <span className="font-bold">{crane.radius.toFixed(1)} m</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-gray-600">Ângulo:</span>
+                      <span className="font-bold">{crane.angle.toFixed(1)}°</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-gray-600">Capacidade no Raio:</span>
+                      <span className="font-bold text-blue-600">{(getCapacityAtRadius(crane.radius) / 1000).toFixed(1)} t</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-gray-600">Peso da Carga:</span>
+                      <span className="font-bold">{(parseFloat(load.weight || 0) / 1000).toFixed(1)} t</span>
+                    </div>
+                    <div className="flex justify-between pt-2">
+                      <span className="text-gray-600">Margem de Segurança:</span>
+                      <span className={`font-bold ${
+                        status.status === 'danger' || status.status === 'critical' ? 'text-red-600' :
+                        status.status === 'warning' ? 'text-yellow-600' :
+                        'text-green-600'
+                      }`}>
+                        {((getCapacityAtRadius(crane.radius) - parseFloat(load.weight || 0)) / 1000).toFixed(1)} t
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabela de Capacidades */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="font-bold text-lg mb-4">Capacidades por Raio</h3>
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="text-left p-2 font-semibold">Raio (m)</th>
+                          <th className="text-left p-2 font-semibold">Cap. (t)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(capacityTable).map(([radius, capacity]) => (
+                          <tr key={radius} className={`border-t hover:bg-gray-50 ${
+                            Math.abs(parseFloat(radius) - crane.radius) < 0.6 ? 'bg-blue-50 border-blue-200' : ''
+                          }`}>
+                            <td className="p-2 font-medium">{radius}</td>
+                            <td className="p-2">{(capacity / 1000).toFixed(1)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Controles Manuais */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="font-bold text-lg mb-4">Controles Manuais</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Raio: {crane.radius.toFixed(1)}m
+                      </label>
+                      <input
+                        type="range"
+                        min={parseFloat(equipment.minRadius) || 3}
+                        max={parseFloat(equipment.maxRadius) || 30}
+                        step="0.5"
+                        value={crane.radius}
+                        onChange={e => setCrane({...crane, radius: parseFloat(e.target.value)})}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>{equipment.minRadius}m</span>
+                        <span>{equipment.maxRadius}m</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Ângulo: {crane.angle.toFixed(1)}°
+                      </label>
+                      <input
+                        type="range"
+                        min="-15"
+                        max="75"
+                        step="1"
+                        value={crane.angle}
+                        onChange={e => setCrane({...crane, angle: parseFloat(e.target.value)})}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>-15°</span>
+                        <span>75°</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="font-bold text-lg mb-4">Ações Rápidas</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setCrane({...crane, radius: 5})}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors"
+                    >
+                      🎯 Raio Mínimo Seguro
+                    </button>
+                    <button
+                      onClick={() => {
+                        const peso = parseFloat(load.weight);
+                        const raioSeguro = Object.entries(capacityTable).find(([r, cap]) => cap > peso * 1.5);
+                        if (raioSeguro) setCrane({...crane, radius: parseFloat(raioSeguro[0])});
+                      }}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors"
+                    >
+                      ✅ Posição Recomendada
+                    </button>
+                    <button
+                      onClick={() => setCrane({radius: 8, angle: 15})}
+                      className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors"
+                    >
+                      🔄 Resetar Posição
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -181,7 +654,51 @@
 
   <style>
     .input {
-      @apply px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full;
+      @apply px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full transition-all duration-200;
+    }
+    
+    .input:focus {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Estilo personalizado para range inputs */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    
+    input[type="range"]::-webkit-slider-track {
+      background: #e2e8f0;
+      height: 8px;
+      border-radius: 4px;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #3b82f6;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    input[type="range"]::-moz-range-track {
+      background: #e2e8f0;
+      height: 8px;
+      border-radius: 4px;
+      border: none;
+    }
+    
+    input[type="range"]::-moz-range-thumb {
+      background: #3b82f6;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
   </style>
 </body>
