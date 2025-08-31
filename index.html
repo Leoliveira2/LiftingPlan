@@ -3,63 +3,59 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>LiftingPlanMonitor – Zonas na Lança</title>
+<title>LiftingPlanMonitor — Versão Revertida (Sem Zonas)</title>
 <style>
   :root{
-    --bg:#0b1220; --panel:#121a2b; --muted:#99a3b3; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
-    --txt:#eaf0ff; --line:#1f2a44; --accent:#60a5fa;
+    --bg:#0b1220; --panel:#121a2b; --line:#1f2a44; --txt:#eaf0ff; --muted:#9db0c9;
+    --accent:#60a5fa; --ok:#22c55e; --bad:#ef4444;
   }
   *{box-sizing:border-box}
-  body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica,sans-serif; background:linear-gradient(180deg,#0b1220,#0d1628 40%,#0b1220); color:var(--txt)}
-  .wrap{max-width:1100px;margin:auto;padding:24px}
-  .grid{display:grid;gap:16px;grid-template-columns:1.2fr .8fr}
+  body{margin:0; font-family:Inter, system-ui, Segoe UI, Roboto, Arial, Helvetica, sans-serif;
+       background:linear-gradient(180deg,#0b1220,#0d1628 40%,#0b1220); color:var(--txt)}
+  .wrap{max-width:1100px; margin:auto; padding:24px}
+  h1{font-size:20px; margin:0 0 12px}
+  .grid{display:grid; gap:16px; grid-template-columns:1.2fr .8fr}
   .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.25)}
-  h1{font-size:20px;margin:0 0 12px 0}
-  label{font-size:12px;color:var(--muted)}
+  label{font-size:12px; color:var(--muted)}
   .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
   .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
-  .input{display:flex;flex-direction:column; gap:6px}
-  input[type="number"], input[type="range"], select{
+  .input{display:flex; flex-direction:column; gap:6px}
+  input[type="number"], input[type="range"]{
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
     background:#0f1729; color:var(--txt); outline:none
   }
   input[type="range"]{height:36px}
-  .hint{font-size:12px; color:var(--muted)}
-  .status{display:flex; align-items:center; gap:10px; margin-top:8px}
-  .pill{
-    padding:6px 10px; border-radius:999px; font-weight:600; font-size:12px;
-    display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.12)
-  }
-  .pill.green{background:rgba(34,197,94,.12); color:#b7f7cb}
-  .pill.yellow{background:rgba(245,158,11,.12); color:#ffe4b3}
-  .pill.red{background:rgba(239,68,68,.12); color:#ffc7c7}
-  .legend{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
-  .lg{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted)}
-  .sw{width:14px; height:10px; border-radius:2px; display:inline-block}
-  .g{background:var(--ok)} .y{background:var(--warn)} .r{background:var(--bad)}
-  canvas{width:100%; height:520px; background:radial-gradient(1200px 520px at 50% 100%, #0a1222 0,#0b1120 60%, #09101d 100%); border-radius:12px; border:1px solid var(--line)}
-  .subtitle{font-size:12px;color:var(--muted);margin-top:6px}
+  canvas{width:100%; height:520px; background:radial-gradient(1200px 520px at 50% 100%, #0a1222 0,#0b1120 60%, #09101d 100%);
+         border-radius:12px; border:1px solid var(--line)}
+  .subtitle{font-size:12px; color:var(--muted); margin-top:6px}
+  .status{display:flex; gap:10px; align-items:center; margin-top:10px}
+  .pill{padding:6px 10px; border-radius:999px; font-weight:600; font-size:12px;
+        border:1px solid rgba(255,255,255,.12); display:inline-flex; align-items:center}
+  .pill.ok{background:rgba(34,197,94,.12); color:#b7f7cb}
+  .pill.bad{background:rgba(239,68,68,.12); color:#ffc7c7}
   .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px}
   .k{background:#0f1729; border:1px solid var(--line); border-radius:12px; padding:10px}
   .k h3{margin:0; font-size:12px; color:var(--muted)}
-  .k p{margin:6px 0 0 0; font-size:18px}
+  .k p{margin:6px 0 0; font-size:18px}
   .foot{font-size:11px; color:var(--muted); margin-top:10px}
-  .btn{cursor:pointer; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1729; color:var(--txt)}
+  .btn{cursor:pointer; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+       background:#0f1729; color:var(--txt)}
+  @media (max-width:980px){ .grid{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>LiftingPlanMonitor — Sinalização de Zonas na Lança</h1>
+    <h1>LiftingPlanMonitor — Versão Revertida (sem zonas de cores)</h1>
     <div class="grid">
       <div class="card">
         <canvas id="scene" width="900" height="520"></canvas>
         <div class="subtitle">
-          Visualização da lança com cor por zona (Verde/Amarela/Vermelha) conforme **utilização** no raio e ângulo atuais.
+          Visualização da lança em cor única. O status operacional é calculado por <b>carga</b> ÷ <b>capacidade no raio</b>.
         </div>
       </div>
 
       <div class="card">
-        <h1>Parâmetros Operacionais</h1>
+        <h1>Parâmetros</h1>
 
         <div class="row">
           <div class="input">
@@ -67,7 +63,7 @@
             <input type="number" id="load" min="0" step="0.1" value="10">
           </div>
           <div class="input">
-            <label>Capacidade no raio atual (t) <span class="hint">(da tabela do fabricante)</span></label>
+            <label>Capacidade no raio atual (t) <span style="color:var(--muted)">(tabela do fabricante)</span></label>
             <input type="number" id="capacity" min="0" step="0.1" value="14">
           </div>
         </div>
@@ -87,41 +83,20 @@
           </div>
         </div>
 
-        <div class="row" style="margin-top:10px">
-          <div class="input">
-            <label>Limite “aceitável” (fração da capacidade)</label>
-            <input type="range" id="limitOk" min="0.70" max="0.90" step="0.01">
-            <div class="hint">Recomendado: 0,75–0,80. Padrão carregado do navegador.</div>
-          </div>
-          <div class="input">
-            <label>Política de vermelho</label>
-            <select id="redPolicy">
-              <option value="1.00" selected>Vermelho apenas quando ≥ 100% (excede curva)</option>
-              <option value="limit">Vermelho quando ≥ limite aceitável</option>
-            </select>
-          </div>
-        </div>
-
         <div class="status">
           <span id="statusPill" class="pill">Status</span>
-          <button id="save" class="btn" title="Salvar preferências">Salvar preferências</button>
-          <button id="reset" class="btn" title="Resetar para padrão">Padrão</button>
-        </div>
-
-        <div class="legend">
-          <span class="lg"><i class="sw g"></i> Verde: ≤ limite aceitável</span>
-          <span class="lg"><i class="sw y"></i> Amarelo: &gt; limite e &lt; 100%</span>
-          <span class="lg"><i class="sw r"></i> Vermelho: conforme política</span>
+          <button id="reset" class="btn" title="Resetar valores">Resetar</button>
         </div>
 
         <div class="kpi">
           <div class="k"><h3>Utilização</h3><p id="kUtil">—</p></div>
-          <div class="k"><h3>Limite aceitável</h3><p id="kLim">—</p></div>
           <div class="k"><h3>Margem</h3><p id="kMarg">—</p></div>
+          <div class="k"><h3>Capacidade @raio</h3><p id="kCap">—</p></div>
         </div>
 
         <div class="foot">
-          *Use a capacidade “no raio” retirada da tabela do fabricante (Liebherr LTM 1220-5.2 ou equivalente). Este exemplo não calcula a curva automaticamente — apenas aplica a política de zonas e a visualização.
+          *Informe a capacidade <b>no raio</b> a partir da tabela oficial do fabricante (ex.: Liebherr LTM 1220-5.2).
+          Esta versão não aplica política de 75–80% nem altera a cor da lança.
         </div>
       </div>
     </div>
@@ -129,7 +104,6 @@
 
 <script>
 (function(){
-  // ---------- Estado & Preferências ----------
   const $ = (id)=>document.getElementById(id);
   const state = {
     load: $('load'),
@@ -137,47 +111,30 @@
     angle: $('angle'),
     radius: $('radius'),
     boomLen: $('boomLen'),
-    limitOk: $('limitOk'),
-    redPolicy: $('redPolicy'),
     pill: $('statusPill'),
     kUtil: $('kUtil'),
-    kLim: $('kLim'),
     kMarg: $('kMarg'),
-    save: $('save'),
+    kCap:  $('kCap'),
     reset: $('reset'),
     canvas: $('scene'),
     ctx: $('scene').getContext('2d'),
   };
 
-  // Carrega limite aceitável do localStorage; padrão 0.80
-  const saved = JSON.parse(localStorage.getItem('lift_prefs')||'{}');
-  state.limitOk.value = saved.limitOk ?? 0.80;
-  state.redPolicy.value = saved.redPolicy ?? '1.00';
-
-  // ---------- Lógica de zonas ----------
   function compute(){
     const load = parseFloat(state.load.value||0);
     const cap  = Math.max(0.0001, parseFloat(state.capacity.value||0));
-    const util = load / cap; // fração
-    const lim  = parseFloat(state.limitOk.value||0.8);
-    const redPolicy = (state.redPolicy.value==='limit') ? lim : 1.00;
-
-    let zone = 'green';
-    if (util >= redPolicy) zone = 'red';
-    else if (util > lim && util < 1.0) zone = 'yellow';
-
-    const margin = Math.max(0, cap - load);
-    return {util, lim, redPolicy, zone, margin, load, cap};
+    const util = load / cap;                 // fração
+    const margin = Math.max(0, cap - load);  // t
+    const allowed = util < 1.0;              // permitido se abaixo de 100% da curva
+    return {load, cap, util, margin, allowed};
   }
 
-  // ---------- Desenho da lança ----------
   function draw(){
     const {ctx, canvas} = state;
-    const ang = parseFloat(state.angle.value)*Math.PI/180;
+    const ang  = parseFloat(state.angle.value)*Math.PI/180;
     const boom = parseFloat(state.boomLen.value);
-    const rad = parseFloat(state.radius.value);
 
-    const {zone, util, lim, margin, cap, load} = compute();
+    const {load, cap, util, margin, allowed} = compute();
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -196,20 +153,14 @@
     ctx.fillStyle = '#223355';
     ctx.fillRect(baseX-22, baseY-60, 44, 30);
 
-    // Lança
+    // Lança (cor fixa, sem zonas)
     const lenPx = boom*7; // escala simples
     const endX = baseX + lenPx * Math.cos(Math.PI/2 - ang);
     const endY = baseY - lenPx * Math.sin(Math.PI/2 - ang);
 
-    // Cor por zona
-    const color = zone==='green' ? '#22c55e' : zone==='yellow' ? '#f59e0b' : '#ef4444';
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 10;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(baseX, baseY-60);
-    ctx.lineTo(endX, endY);
-    ctx.stroke();
+    ctx.strokeStyle = '#60a5fa'; // cor única
+    ctx.lineWidth = 10; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(baseX, baseY-60); ctx.lineTo(endX, endY); ctx.stroke();
 
     // Gancho e carga
     ctx.fillStyle = '#9fb5ff';
@@ -218,55 +169,42 @@
     ctx.beginPath(); ctx.moveTo(endX, endY); ctx.lineTo(endX, endY+40); ctx.stroke();
     ctx.fillStyle = '#adb8cc'; ctx.fillRect(endX-12, endY+40, 24, 26);
 
-    // Raio (indicativo)
-    ctx.strokeStyle = '#355280'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(baseX, baseY-60); ctx.lineTo(endX, endY); ctx.stroke();
-
-    // Texto informativo próximo à carga
+    // Indicativos de texto
     ctx.font = '12px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#cfe3ff';
     ctx.fillText(`Carga: ${load.toFixed(1)} t`, endX+10, endY+10);
     ctx.fillText(`Capacidade@raio: ${cap.toFixed(1)} t`, endX+10, endY+26);
     ctx.fillText(`Utilização: ${(util*100).toFixed(0)}%`, endX+10, endY+42);
 
-    // Atualiza badge e KPIs
-    updateStatus(util, zone);
-    state.kUtil.textContent = (util*100).toFixed(1)+'%';
-    state.kLim.textContent  = (lim*100).toFixed(0)+'%';
-    state.kMarg.textContent = margin.toFixed(1)+' t';
+    // Status (apenas por capacidade)
+    updateStatus(allowed);
+
+    // KPIs
+    state.kUtil.textContent = (util*100).toFixed(1) + '%';
+    state.kMarg.textContent = margin.toFixed(1) + ' t';
+    state.kCap.textContent  = cap.toFixed(1) + ' t';
   }
 
-  function updateStatus(util, zone){
+  function updateStatus(allowed){
     const p = state.pill;
-    p.className = 'pill';
-    if(zone==='green'){ p.classList.add('green'); p.textContent = 'VERDE — Operação dentro do limite aceitável'; }
-    if(zone==='yellow'){ p.classList.add('yellow'); p.textContent = 'AMARELA — Atenção: acima do limite aceitável'; }
-    if(zone==='red'){
-      p.classList.add('red');
-      p.textContent = util>=1.0 ? 'VERMELHA — NÃO PERMITIDO: excede a curva' : 'VERMELHA — NÃO PERMITIDO pela política';
-    }
+    p.className = 'pill ' + (allowed ? 'ok' : 'bad');
+    p.textContent = allowed ? 'PERMITIDO — abaixo da curva do fabricante'
+                            : 'NÃO PERMITIDO — excede a curva do fabricante';
   }
 
-  // ---------- Eventos ----------
-  ['load','capacity','angle','radius','boomLen','limitOk','redPolicy'].forEach(id=>{
+  ['load','capacity','angle','radius','boomLen'].forEach(id=>{
     state[id].addEventListener('input', draw);
   });
 
-  state.save.addEventListener('click', ()=>{
-    localStorage.setItem('lift_prefs', JSON.stringify({
-      limitOk: parseFloat(state.limitOk.value||0.8),
-      redPolicy: state.redPolicy.value
-    }));
-    alert('Preferências salvas neste navegador.');
-  });
-
   state.reset.addEventListener('click', ()=>{
-    state.limitOk.value = 0.80;
-    state.redPolicy.value = '1.00';
+    state.load.value = 10;
+    state.capacity.value = 14;
+    state.angle.value = 55;
+    state.radius.value = 24;
+    state.boomLen.value = 42;
     draw();
   });
 
-  // Primeira render
   draw();
 })();
 </script>
