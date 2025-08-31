@@ -1,588 +1,274 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Planejador de Rigging — Standalone</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    html,body{height:100%}
-    canvas{touch-action:none; cursor:crosshair}
-    @media print{
-      .no-print{display:none!important}
-      .print-block{display:block!important}
-      body{background:white}
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LiftingPlanMonitor – Zonas na Lança</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121a2b; --muted:#99a3b3; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+    --txt:#eaf0ff; --line:#1f2a44; --accent:#60a5fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica,sans-serif; background:linear-gradient(180deg,#0b1220,#0d1628 40%,#0b1220); color:var(--txt)}
+  .wrap{max-width:1100px;margin:auto;padding:24px}
+  .grid{display:grid;gap:16px;grid-template-columns:1.2fr .8fr}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  h1{font-size:20px;margin:0 0 12px 0}
+  label{font-size:12px;color:var(--muted)}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
+  .input{display:flex;flex-direction:column; gap:6px}
+  input[type="number"], input[type="range"], select{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+    background:#0f1729; color:var(--txt); outline:none
+  }
+  input[type="range"]{height:36px}
+  .hint{font-size:12px; color:var(--muted)}
+  .status{display:flex; align-items:center; gap:10px; margin-top:8px}
+  .pill{
+    padding:6px 10px; border-radius:999px; font-weight:600; font-size:12px;
+    display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.12)
+  }
+  .pill.green{background:rgba(34,197,94,.12); color:#b7f7cb}
+  .pill.yellow{background:rgba(245,158,11,.12); color:#ffe4b3}
+  .pill.red{background:rgba(239,68,68,.12); color:#ffc7c7}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  .lg{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted)}
+  .sw{width:14px; height:10px; border-radius:2px; display:inline-block}
+  .g{background:var(--ok)} .y{background:var(--warn)} .r{background:var(--bad)}
+  canvas{width:100%; height:520px; background:radial-gradient(1200px 520px at 50% 100%, #0a1222 0,#0b1120 60%, #09101d 100%); border-radius:12px; border:1px solid var(--line)}
+  .subtitle{font-size:12px;color:var(--muted);margin-top:6px}
+  .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px}
+  .k{background:#0f1729; border:1px solid var(--line); border-radius:12px; padding:10px}
+  .k h3{margin:0; font-size:12px; color:var(--muted)}
+  .k p{margin:6px 0 0 0; font-size:18px}
+  .foot{font-size:11px; color:var(--muted); margin-top:10px}
+  .btn{cursor:pointer; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1729; color:var(--txt)}
+</style>
 </head>
-<body class="min-h-screen bg-slate-100 text-slate-900">
-  <div class="max-w-6xl mx-auto p-4 md:p-6 space-y-4">
-    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <h1 class="text-2xl md:text-3xl font-bold">Planejador de Rigging — Standalone</h1>
-      <div class="no-print flex flex-wrap gap-2">
-        <button id="btnExport" class="px-3 py-2 rounded-lg bg-blue-600 text-white">Exportar JSON</button>
-        <label class="px-3 py-2 rounded-lg bg-emerald-600 text-white cursor-pointer">
-          Importar JSON <input id="fileImport" type="file" accept="application/json" class="hidden">
-        </label>
-        <button id="btnPrint" class="px-3 py-2 rounded-lg bg-neutral-700 text-white">Imprimir / PDF</button>
-        <button id="btnReset" class="px-3 py-2 rounded-lg bg-slate-200">Reset</button>
+<body>
+  <div class="wrap">
+    <h1>LiftingPlanMonitor — Sinalização de Zonas na Lança</h1>
+    <div class="grid">
+      <div class="card">
+        <canvas id="scene" width="900" height="520"></canvas>
+        <div class="subtitle">
+          Visualização da lança com cor por zona (Verde/Amarela/Vermelha) conforme **utilização** no raio e ângulo atuais.
+        </div>
       </div>
-    </header>
 
-    <!-- ALERTA -->
-    <div id="alertBox" class="hidden rounded-xl border p-3"></div>
+      <div class="card">
+        <h1>Parâmetros Operacionais</h1>
 
-    <!-- GRID PRINCIPAL -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- CARGA & RIGGING -->
-      <section class="rounded-2xl border bg-white p-4 space-y-4">
-        <h2 class="text-lg font-semibold">1) Carga e Rigging</h2>
-        <div>
-          <label class="text-sm">Descrição</label>
-          <input id="desc" class="w-full mt-1 px-3 py-2 rounded-lg border" placeholder="Ex.: Chiller 15 t">
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-sm">Peso (kg)</label>
-            <input id="peso" type="number" min="0" class="w-full mt-1 px-3 py-2 rounded-lg border" placeholder="15000">
+        <div class="row">
+          <div class="input">
+            <label>Carga suspensa (t)</label>
+            <input type="number" id="load" min="0" step="0.1" value="10">
           </div>
-          <div>
-            <label class="text-sm">Desbalance (CG) %</label>
-            <input id="cg" type="number" min="0" max="50" class="w-full mt-1 px-3 py-2 rounded-lg border" value="0">
-            <p class="text-xs text-slate-500 mt-1">0 = central; >0 pesa mais em uma perna</p>
+          <div class="input">
+            <label>Capacidade no raio atual (t) <span class="hint">(da tabela do fabricante)</span></label>
+            <input type="number" id="capacity" min="0" step="0.1" value="14">
           </div>
         </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div><label class="text-sm">L (m)</label><input id="L" class="w-full mt-1 px-3 py-2 rounded-lg border" value="4.0"></div>
-          <div><label class="text-sm">W (m)</label><input id="W" class="w-full mt-1 px-3 py-2 rounded-lg border" value="2.2"></div>
-          <div><label class="text-sm">H (m)</label><input id="H" class="w-full mt-1 px-3 py-2 rounded-lg border" value="2.3"></div>
+
+        <div class="row3" style="margin-top:10px">
+          <div class="input">
+            <label>Ângulo da lança (°)</label>
+            <input type="range" id="angle" min="20" max="80" step="1" value="55">
+          </div>
+          <div class="input">
+            <label>Raio (m)</label>
+            <input type="range" id="radius" min="5" max="60" step="1" value="24">
+          </div>
+          <div class="input">
+            <label>Comprimento da lança (m)</label>
+            <input type="range" id="boomLen" min="20" max="70" step="1" value="42">
+          </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-sm">Tipo de Rigging</label>
-            <select id="rigType" class="w-full mt-1 px-3 py-2 rounded-lg border">
-              <option value="wire">Eslinga de Cabo de Aço — FS 5x</option>
-              <option value="poly">Eslinga Têxtil (Poliéster) — FS 7x</option>
-              <option value="chain">Eslinga de Corrente — FS 4x</option>
-              <option value="spreader">Balancim — FS 3x</option>
+        <div class="row" style="margin-top:10px">
+          <div class="input">
+            <label>Limite “aceitável” (fração da capacidade)</label>
+            <input type="range" id="limitOk" min="0.70" max="0.90" step="0.01">
+            <div class="hint">Recomendado: 0,75–0,80. Padrão carregado do navegador.</div>
+          </div>
+          <div class="input">
+            <label>Política de vermelho</label>
+            <select id="redPolicy">
+              <option value="1.00" selected>Vermelho apenas quando ≥ 100% (excede curva)</option>
+              <option value="limit">Vermelho quando ≥ limite aceitável</option>
             </select>
           </div>
-          <div>
-            <label class="text-sm">Pernas (qtd)</label>
-            <input id="slingCount" type="number" min="1" class="w-full mt-1 px-3 py-2 rounded-lg border" value="2">
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-sm">Capacidade por Eslinga (kg)</label>
-            <input id="slingCap" type="number" min="0" class="w-full mt-1 px-3 py-2 rounded-lg border" value="10000">
-          </div>
-          <div>
-            <label class="text-sm">Ângulo da eslinga (°)</label>
-            <input id="angle" type="range" min="30" max="90" step="1" value="60" class="w-full mt-2">
-            <div class="text-xs text-slate-500">Mínimo 30° — atual: <b id="angleVal">60°</b></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- GUINDASTE & AMBIENTE -->
-      <section class="rounded-2xl border bg-white p-4 space-y-4">
-        <h2 class="text-lg font-semibold">2) Guindaste e Ambiente</h2>
-        <div>
-          <label class="text-sm">Modelo do Guindaste</label>
-          <select id="crane" class="w-full mt-1 px-3 py-2 rounded-lg border"></select>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-sm">Raio (m)</label>
-            <input id="raio" type="number" min="0" step="0.1" class="w-full mt-1 px-3 py-2 rounded-lg border" value="8.0">
-            <p class="text-xs text-slate-500 mt-1" id="rangeInfo"></p>
-          </div>
-          <div>
-            <label class="text-sm">Ângulo da lança (°)</label>
-            <input id="boomAngle" type="number" min="10" max="85" class="w-full mt-1 px-3 py-2 rounded-lg border" value="45">
-          </div>
-        </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="text-sm">Vento (km/h)</label>
-            <input id="vento" type="number" min="0" class="w-full mt-1 px-3 py-2 rounded-lg border" value="10">
-          </div>
-          <div>
-            <label class="text-sm">Solo</label>
-            <select id="solo" class="w-full mt-1 px-3 py-2 rounded-lg border">
-              <option value="firme">Firme</option>
-              <option value="compactado">Compactado</option>
-              <option value="macio">Macio</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-sm">Temperatura (°C)</label>
-            <input id="temp" type="number" class="w-full mt-1 px-3 py-2 rounded-lg border" value="25">
-          </div>
         </div>
 
-        <div id="resumo" class="rounded-xl border p-3 mt-2 text-sm space-y-1">
-          <!-- preenchido via JS -->
+        <div class="status">
+          <span id="statusPill" class="pill">Status</span>
+          <button id="save" class="btn" title="Salvar preferências">Salvar preferências</button>
+          <button id="reset" class="btn" title="Resetar para padrão">Padrão</button>
         </div>
-      </section>
+
+        <div class="legend">
+          <span class="lg"><i class="sw g"></i> Verde: ≤ limite aceitável</span>
+          <span class="lg"><i class="sw y"></i> Amarelo: &gt; limite e &lt; 100%</span>
+          <span class="lg"><i class="sw r"></i> Vermelho: conforme política</span>
+        </div>
+
+        <div class="kpi">
+          <div class="k"><h3>Utilização</h3><p id="kUtil">—</p></div>
+          <div class="k"><h3>Limite aceitável</h3><p id="kLim">—</p></div>
+          <div class="k"><h3>Margem</h3><p id="kMarg">—</p></div>
+        </div>
+
+        <div class="foot">
+          *Use a capacidade “no raio” retirada da tabela do fabricante (Liebherr LTM 1220-5.2 ou equivalente). Este exemplo não calcula a curva automaticamente — apenas aplica a política de zonas e a visualização.
+        </div>
+      </div>
     </div>
-
-    <!-- CANVAS + CONTROLES -->
-    <section class="rounded-2xl border bg-white p-4 space-y-2">
-      <h2 class="text-lg font-semibold">3) Visualização (arraste a lança)</h2>
-      <p class="text-sm text-slate-500">Linha tracejada: raio selecionado. Cor da lança reflete o status.</p>
-      <canvas id="canvas" class="w-full border-2 border-slate-200 rounded-lg bg-white" style="height:480px"></canvas>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="text-sm">Raio: <b id="raioTxt">8.0 m</b></label>
-          <input id="raioRange" type="range" step="0.5" class="w-full">
-        </div>
-        <div>
-          <label class="text-sm">Ângulo: <b id="boomTxt">45°</b></label>
-          <input id="boomRange" type="range" min="10" max="85" step="1" class="w-full" value="45">
-        </div>
-      </div>
-    </section>
-
-    <!-- RELATÓRIO RÁPIDO -->
-    <section class="rounded-2xl border bg-white p-4 space-y-2 print-block hidden">
-      <h2 class="text-lg font-semibold">4) Relatório Rápido</h2>
-      <table class="w-full text-sm">
-        <tbody id="relatorio"></tbody>
-      </table>
-    </section>
-
-    <footer class="text-xs text-slate-500 pb-8">
-      ⚠️ Simulador didático. Sempre valide com cartas oficiais do fabricante, condições reais e procedimentos de segurança (PT, APR, LOTO etc.).
-    </footer>
   </div>
 
-  <script>
-    // ===== Dados dos guindastes =====
-    const CRANES = {
-      "liebherr-ltm-1220": {
-        name: "Liebherr LTM 1220-5.2",
-        maxCapacity: 220000,
-        minRadius: 3,
-        maxRadius: 30,
-        boomLength: 60,
-        capacityTable: {
-          3:220000,3.5:180000,4:150000,4.5:125000,5:105000,5.5:90000,
-          6:78000,6.5:68000,7:60000,7.5:53000,8:47000,8.5:42000,
-          9:38000,9.5:34000,10:31000,11:26000,12:22000,13:19000,
-          14:16500,15:14500,16:12800,17:11400,18:10200,19:9200,
-          20:8400,22:7200,24:6200,26:5400,28:4700,30:4100
-        }
-      },
-      "grove-rt890e": {
-        name: "Grove RT890E",
-        maxCapacity: 90000,
-        minRadius: 2.5,
-        maxRadius: 25,
-        boomLength: 47,
-        capacityTable: {
-          2.5:90000,3:75000,3.5:62000,4:52000,4.5:44000,5:38000,
-          6:28000,7:22000,8:18000,9:15000,10:13000,12:9500,
-          14:7500,16:6200,18:5200,20:4500,22:3900,25:3200
-        }
-      },
-      "terex-rt555": {
-        name: "Terex RT555",
-        maxCapacity: 55000,
-        minRadius: 2.5,
-        maxRadius: 20,
-        boomLength: 35,
-        capacityTable: {
-          2.5:55000,3:45000,3.5:38000,4:32000,4.5:27000,5:23000,
-          6:18000,7:14500,8:12000,9:10200,10:8800,12:6800,
-          14:5500,16:4600,18:3900,20:3400
-        }
-      }
-    };
+<script>
+(function(){
+  // ---------- Estado & Preferências ----------
+  const $ = (id)=>document.getElementById(id);
+  const state = {
+    load: $('load'),
+    capacity: $('capacity'),
+    angle: $('angle'),
+    radius: $('radius'),
+    boomLen: $('boomLen'),
+    limitOk: $('limitOk'),
+    redPolicy: $('redPolicy'),
+    pill: $('statusPill'),
+    kUtil: $('kUtil'),
+    kLim: $('kLim'),
+    kMarg: $('kMarg'),
+    save: $('save'),
+    reset: $('reset'),
+    canvas: $('scene'),
+    ctx: $('scene').getContext('2d'),
+  };
 
-    // ===== Helpers =====
-    const $ = (id) => document.getElementById(id);
-    const STORAGE_KEY = "riggingPlannerStandalone:v1";
-    const kg = (n)=> new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(n)+" kg";
-    const pct= (n)=> new Intl.NumberFormat("pt-BR",{maximumFractionDigits:1}).format(n)+"%";
-    const toNum=(v,fb=0)=>{const n=Number(String(v??"").replace(",","."));return Number.isFinite(n)?n:fb;}
+  // Carrega limite aceitável do localStorage; padrão 0.80
+  const saved = JSON.parse(localStorage.getItem('lift_prefs')||'{}');
+  state.limitOk.value = saved.limitOk ?? 0.80;
+  state.redPolicy.value = saved.redPolicy ?? '1.00';
 
-    function capacityAtRadius(table, r){
-      const keys = Object.keys(table).map(Number).sort((a,b)=>a-b);
-      if(!keys.length) return 0;
-      if(r<=keys[0]) return table[keys[0]];
-      if(r>=keys.at(-1)) return table[keys.at(-1)];
-      let i = keys.findIndex(k=>k>=r); if(i<=0) i=1;
-      const r0=keys[i-1], r1=keys[i];
-      const c0=table[r0], c1=table[r1];
-      const t=(r-r0)/(r1-r0);
-      return c0 + (c1-c0)*t;
+  // ---------- Lógica de zonas ----------
+  function compute(){
+    const load = parseFloat(state.load.value||0);
+    const cap  = Math.max(0.0001, parseFloat(state.capacity.value||0));
+    const util = load / cap; // fração
+    const lim  = parseFloat(state.limitOk.value||0.8);
+    const redPolicy = (state.redPolicy.value==='limit') ? lim : 1.00;
+
+    let zone = 'green';
+    if (util >= redPolicy) zone = 'red';
+    else if (util > lim && util < 1.0) zone = 'yellow';
+
+    const margin = Math.max(0, cap - load);
+    return {util, lim, redPolicy, zone, margin, load, cap};
+  }
+
+  // ---------- Desenho da lança ----------
+  function draw(){
+    const {ctx, canvas} = state;
+    const ang = parseFloat(state.angle.value)*Math.PI/180;
+    const boom = parseFloat(state.boomLen.value);
+    const rad = parseFloat(state.radius.value);
+
+    const {zone, util, lim, margin, cap, load} = compute();
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // chão
+    ctx.fillStyle = '#0c1426';
+    ctx.fillRect(0, 430, canvas.width, 90);
+    ctx.strokeStyle = '#1f2a44';
+    ctx.beginPath();
+    for(let x=0;x<canvas.width;x+=26){ ctx.moveTo(x,430); ctx.lineTo(x+10,430); }
+    ctx.stroke();
+
+    // Base do guindaste
+    const baseX = 140, baseY = 420;
+    ctx.fillStyle = '#1b2742';
+    ctx.fillRect(baseX-40, baseY-30, 80, 30);
+    ctx.fillStyle = '#223355';
+    ctx.fillRect(baseX-22, baseY-60, 44, 30);
+
+    // Lança
+    const lenPx = boom*7; // escala simples
+    const endX = baseX + lenPx * Math.cos(Math.PI/2 - ang);
+    const endY = baseY - lenPx * Math.sin(Math.PI/2 - ang);
+
+    // Cor por zona
+    const color = zone==='green' ? '#22c55e' : zone==='yellow' ? '#f59e0b' : '#ef4444';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(baseX, baseY-60);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    // Gancho e carga
+    ctx.fillStyle = '#9fb5ff';
+    ctx.beginPath(); ctx.arc(endX, endY, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#9fb5ff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(endX, endY); ctx.lineTo(endX, endY+40); ctx.stroke();
+    ctx.fillStyle = '#adb8cc'; ctx.fillRect(endX-12, endY+40, 24, 26);
+
+    // Raio (indicativo)
+    ctx.strokeStyle = '#355280'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(baseX, baseY-60); ctx.lineTo(endX, endY); ctx.stroke();
+
+    // Texto informativo próximo à carga
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.fillStyle = '#cfe3ff';
+    ctx.fillText(`Carga: ${load.toFixed(1)} t`, endX+10, endY+10);
+    ctx.fillText(`Capacidade@raio: ${cap.toFixed(1)} t`, endX+10, endY+26);
+    ctx.fillText(`Utilização: ${(util*100).toFixed(0)}%`, endX+10, endY+42);
+
+    // Atualiza badge e KPIs
+    updateStatus(util, zone);
+    state.kUtil.textContent = (util*100).toFixed(1)+'%';
+    state.kLim.textContent  = (lim*100).toFixed(0)+'%';
+    state.kMarg.textContent = margin.toFixed(1)+' t';
+  }
+
+  function updateStatus(util, zone){
+    const p = state.pill;
+    p.className = 'pill';
+    if(zone==='green'){ p.classList.add('green'); p.textContent = 'VERDE — Operação dentro do limite aceitável'; }
+    if(zone==='yellow'){ p.classList.add('yellow'); p.textContent = 'AMARELA — Atenção: acima do limite aceitável'; }
+    if(zone==='red'){
+      p.classList.add('red');
+      p.textContent = util>=1.0 ? 'VERMELHA — NÃO PERMITIDO: excede a curva' : 'VERMELHA — NÃO PERMITIDO pela política';
     }
-    function windDerate(kmh){
-      const mps = kmh/3.6;
-      if(mps>=12) return {allowed:false, factor:0,    reason:"Vento ≥ 12 m/s: operação proibida"};
-      if(mps>=10) return {allowed:true,  factor:0.85, reason:"Vento alto: aplicar -15%"};
-      if(mps>=8)  return {allowed:true,  factor:0.95, reason:"Vento moderado: aplicar -5%"};
-      return {allowed:true, factor:1.0, reason:"Vento dentro do aceitável"};
-    }
-    function slingAngleFactor(angleDeg){
-      const a = Math.max(30, Math.min(90, angleDeg))*Math.PI/180;
-      return 1/Math.sin(a); // ângulo com a horizontal
-    }
-    function fsFor(type){
-      return type==="poly"?7: type==="chain"?4: type==="spreader"?3:5;
-    }
+  }
 
-    // ===== Estado (persistência) =====
-    const state = {
-      selectedCrane: "liebherr-ltm-1220",
-      load: { desc:"Chiller 15 t", weightKg:15000, cg:0, L:4.0, W:2.2, H:2.3 },
-      rig:  { type:"wire", count:2, capKg:10000, angle:60 },
-      crane:{ radius:8.0, boomAngle:45 },
-      env:  { windKmh:10, ground:"firme", tempC:25 }
-    };
-    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-    function restore(){
-      try{ const raw = localStorage.getItem(STORAGE_KEY);
-        if(raw){ const s=JSON.parse(raw); Object.assign(state, s); }
-      }catch{}
-    }
+  // ---------- Eventos ----------
+  ['load','capacity','angle','radius','boomLen','limitOk','redPolicy'].forEach(id=>{
+    state[id].addEventListener('input', draw);
+  });
 
-    // ===== Inicialização da UI =====
-    function initUI(){
-      // Preencher select guindaste
-      const craneSel = $("crane");
-      craneSel.innerHTML = Object.entries(CRANES).map(([k,c]) =>
-        `<option value="${k}">${c.name} — ${c.maxCapacity/1000}t</option>`
-      ).join("");
-      craneSel.value = state.selectedCrane;
+  state.save.addEventListener('click', ()=>{
+    localStorage.setItem('lift_prefs', JSON.stringify({
+      limitOk: parseFloat(state.limitOk.value||0.8),
+      redPolicy: state.redPolicy.value
+    }));
+    alert('Preferências salvas neste navegador.');
+  });
 
-      // Inputs
-      $("desc").value = state.load.desc;
-      $("peso").value = state.load.weightKg;
-      $("cg").value   = state.load.cg;
-      $("L").value = state.load.L; $("W").value=state.load.W; $("H").value=state.load.H;
+  state.reset.addEventListener('click', ()=>{
+    state.limitOk.value = 0.80;
+    state.redPolicy.value = '1.00';
+    draw();
+  });
 
-      $("rigType").value = state.rig.type;
-      $("slingCount").value = state.rig.count;
-      $("slingCap").value = state.rig.capKg;
-      $("angle").value = state.rig.angle;
-      $("angleVal").textContent = state.rig.angle+"°";
-
-      $("raio").value = state.crane.radius;
-      $("boomAngle").value = state.crane.boomAngle;
-      $("vento").value = state.env.windKmh;
-      $("solo").value = state.env.ground;
-      $("temp").value = state.env.tempC;
-
-      const c = CRANES[state.selectedCrane];
-      $("rangeInfo").textContent = `Carta: ${c.minRadius}–${c.maxRadius} m`;
-
-      // Sliders espelhados
-      const rr = $("raioRange");
-      rr.min = c.minRadius; rr.max = c.maxRadius; rr.step = 0.5; rr.value = state.crane.radius;
-      $("raioTxt").textContent = state.crane.radius.toFixed(1)+" m";
-      $("boomRange").value = state.crane.boomAngle;
-      $("boomTxt").textContent = state.crane.boomAngle+"°";
-
-      renderAll();
-      bindEvents();
-    }
-
-    // ===== Cálculo principal + UI resumo/alerta =====
-    function compute(){
-      const cinfo = CRANES[state.selectedCrane];
-      const weight = toNum(state.load.weightKg);
-      const radius = toNum(state.crane.radius);
-      const angle  = toNum(state.rig.angle);
-      const scount = Math.max(1, Math.round(toNum(state.rig.count)));
-      const scap   = toNum(state.rig.capKg);
-
-      if(!Number.isFinite(weight) || !Number.isFinite(radius) || !Number.isFinite(angle) || !Number.isFinite(scap)){
-        return {ok:false, message:"Preencha valores numéricos válidos."};
-      }
-      const capBase = capacityAtRadius(cinfo.capacityTable, radius);
-      const wind = windDerate(toNum(state.env.windKmh));
-      const capDer = capBase * wind.factor;
-
-      const af = slingAngleFactor(angle);
-      const imb = 1 + Math.max(0, Math.min(50, toNum(state.load.cg)))/100; // 0..1.5
-      const slingLoad = (weight * af * imb) / scount;
-
-      const utilCrane = (weight/Math.max(1, capDer))*100;
-      const utilSling = (slingLoad/Math.max(1, (scap/fsFor(state.rig.type))))*100;
-
-      let status="ok", notes=[];
-      if(!wind.allowed){ status="ban"; notes.push("Operação proibida pelo vento."); }
-      else notes.push(wind.reason);
-
-      if(utilCrane>100){status="bad"; notes.push("SOBRECARGA do guindaste.");}
-      else if(utilCrane>75){ if(status==="ok") status="warn"; notes.push("Guindaste > 75% da capacidade.");}
-
-      if(utilSling>100){status="bad"; notes.push("SOBRECARGA nas eslingas.");}
-      else if(utilSling>85){ if(status==="ok") status="warn"; notes.push("Eslingas > 85% da capacidade permitida.");}
-
-      if(radius<cinfo.minRadius || radius>cinfo.maxRadius){status="bad"; notes.push("Raio fora da carta.");}
-
-      return {
-        ok:true, capBase, capDer, utilCrane, utilSling, slingLoad, af, imb, status, notes, cinfo, weight, radius
-      };
-    }
-
-    function updateAlert(calc){
-      const box = $("alertBox");
-      box.classList.add("hidden");
-      box.className = "hidden rounded-xl border p-3";
-      if(!calc.ok){
-        box.textContent = "Valores inválidos: "+calc.message;
-        box.classList.remove("hidden"); box.classList.add("border-red-300","bg-red-50","text-red-900");
-        return;
-      }
-      const msg = calc.notes.join(" • ");
-      let cls = ["rounded-xl","border","p-3"];
-      if(calc.status==="ban"||calc.status==="bad") cls.push("border-red-300","bg-red-50","text-red-900");
-      else if(calc.status==="warn") cls.push("border-amber-300","bg-amber-50","text-amber-900");
-      else cls.push("border-emerald-300","bg-emerald-50","text-emerald-900");
-      box.className = cls.join(" ");
-      box.textContent = (calc.status==="ban"?"🚫 ":calc.status==="bad"?"🚨 ":calc.status==="warn"?"⚠️ ":"✅ ")+msg;
-      box.classList.remove("hidden");
-    }
-
-    function updateResumo(calc){
-      const el = $("resumo");
-      if(!calc.ok){ el.innerHTML=""; return; }
-      el.innerHTML = `
-        <h3 class="font-semibold mb-2">Resumo</h3>
-        <div class="grid grid-cols-2 gap-2">
-          <div>Capacidade base (carta): <b>${kg(calc.capBase)}</b></div>
-          <div>Capacidade c/ vento: <b>${kg(calc.capDer)}</b></div>
-          <div>Utilização do guindaste: <b>${pct(calc.utilCrane)}</b></div>
-          <div>Carga por perna (máx): <b>${kg(calc.slingLoad)}</b></div>
-          <div>Utilização das eslingas: <b>${pct(calc.utilSling)}</b></div>
-          <div>Fator de ângulo: <b>${calc.af.toFixed(3)}</b> (min 30°)</div>
-        </div>`;
-    }
-
-    function updateRelatorio(calc){
-      const t = $("relatorio");
-      if(!calc.ok){ t.innerHTML=""; return; }
-      t.innerHTML = `
-        <tr><td class="font-medium w-56">Guindaste</td><td>${calc.cinfo.name}</td></tr>
-        <tr><td class="font-medium">Raio</td><td>${state.crane.radius} m — Carta: ${calc.cinfo.minRadius}–${calc.cinfo.maxRadius} m</td></tr>
-        <tr><td class="font-medium">Cap. (derated)</td><td>${kg(calc.capDer)}</td></tr>
-        <tr><td class="font-medium">Carga</td><td>${state.load.desc} — ${kg(calc.weight)}</td></tr>
-        <tr><td class="font-medium">Rigging</td><td>${$("rigType").selectedOptions[0].text} — ${state.rig.count} pernas @ ${kg(state.rig.capKg)} — Ângulo ${state.rig.angle}°</td></tr>
-        <tr><td class="font-medium">Ambiente</td><td>Vento ${state.env.windKmh} km/h (${windDerate(state.env.windKmh).reason}); Solo ${state.env.ground}; ${state.env.tempC} °C</td></tr>
-        <tr><td class="font-medium">Utilizações</td><td>Guindaste ${pct(calc.utilCrane)} — Eslingas ${pct(calc.utilSling)}</td></tr>
-        <tr><td class="font-medium">Notas</td><td>${calc.notes.join(" • ")}</td></tr>
-      `;
-    }
-
-    // ===== Canvas =====
-    function drawCanvas(calc){
-      const c = $("canvas");
-      const ctx = c.getContext("2d");
-      const w = c.width = c.clientWidth;
-      const h = c.height = 480;
-      const cx = w/2; const cy = h-60;
-      const scale = Math.min(w,h)/50;
-
-      ctx.clearRect(0,0,w,h);
-      // Fundo
-      ctx.fillStyle="#f8fafc"; ctx.fillRect(0,0,w,h);
-      // Grid
-      ctx.strokeStyle="#e2e8f0"; ctx.lineWidth=0.5;
-      for(let x=0;x<=w;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-      for(let y=0;y<=h;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
-
-      const cinfo = CRANES[state.selectedCrane];
-
-      // Círculos de raio
-      const rings = [];
-      for(let r=Math.ceil(cinfo.minRadius/5)*5; r<=cinfo.maxRadius; r+=5){ rings.push(r); }
-      rings.forEach(r=>{
-        ctx.setLineDash(r===Math.round(state.crane.radius)?[5,5]:[2,2]);
-        ctx.strokeStyle = r===Math.round(state.crane.radius)?"#3b82f6":"#e5e7eb";
-        ctx.lineWidth = r===Math.round(state.crane.radius)?2:1;
-        ctx.beginPath(); ctx.arc(cx,cy,r*scale,0,2*Math.PI); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle="#64748b"; ctx.font="12px system-ui";
-        ctx.fillText(`${r}m`, cx+r*scale+5, cy-5);
-      });
-
-      // Chassis
-      const chassisW=160, chassisH=20, chassisY=cy-chassisH/2;
-      ctx.fillStyle="#FDB813"; ctx.fillRect(cx-chassisW/2, chassisY, chassisW, chassisH);
-      // Cabine
-      ctx.fillStyle="#2563EB"; ctx.fillRect(cx-chassisW/2+10, chassisY-25, 35, 25);
-      ctx.fillStyle="#87CEEB"; ctx.fillRect(cx-chassisW/2+12, chassisY-23, 15, 10);
-      ctx.fillRect(cx-chassisW/2+28, chassisY-23, 15, 10);
-
-      // Superestrutura e pivot
-      const supW=80, supH=35, supY=chassisY - supH;
-      ctx.fillStyle="#FDB813"; ctx.fillRect(cx-supW/2, supY, supW, supH);
-      const pivotX = cx+10, pivotY=supY-5;
-      ctx.beginPath(); ctx.arc(pivotX,pivotY,6,0,2*Math.PI); ctx.fillStyle="#9ca3af"; ctx.fill();
-
-      // Lança
-      const boomLen = state.crane.radius*scale;
-      const ang = Math.max(10, Math.min(85, state.crane.boomAngle))*Math.PI/180;
-      const ex = pivotX + Math.cos(ang)*boomLen;
-      const ey = pivotY - Math.sin(ang)*boomLen;
-
-      let boomColor = "#FDB813";
-      if(calc.status==="bad"||calc.status==="ban") boomColor="#dc2626";
-      else if(calc.status==="warn") boomColor="#f59e0b";
-
-      ctx.strokeStyle=boomColor; ctx.lineWidth=10;
-      ctx.beginPath(); ctx.moveTo(pivotX,pivotY); ctx.lineTo(ex,ey); ctx.stroke();
-
-      // Cabo + Gancho
-      ctx.strokeStyle="#374151"; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(ex,ey+40); ctx.stroke();
-      ctx.beginPath(); ctx.arc(ex,ey+50,8,Math.PI*0.1,Math.PI*1.4); ctx.stroke();
-
-      // Carga
-      const weight = toNum(state.load.weightKg);
-      if(weight>0){
-        const loadSize = Math.min(50, Math.max(20, Math.sqrt(weight)/40));
-        ctx.fillStyle = (calc.status==="bad"||calc.status==="ban") ? "#dc2626" : "#f59e0b";
-        ctx.fillRect(ex-loadSize/2, ey+60, loadSize, loadSize);
-        ctx.fillStyle="#1f2937"; ctx.font="10px system-ui";
-        ctx.fillText((weight/1000).toFixed(1)+"t", ex-12, ey+75);
-      }
-
-      // Informações
-      ctx.fillStyle="#1e293b"; ctx.font="bold 16px system-ui";
-      ctx.fillText(`Raio: ${state.crane.radius.toFixed(1)}m`, 20, 30);
-      ctx.fillText(`Capacidade: ${(calc.capBase/1000).toFixed(1)}t`, 20, 55);
-      ctx.fillText(`Ângulo: ${state.crane.boomAngle.toFixed(0)}°`, 20, 80);
-    }
-
-    // ===== Bindings =====
-    function bindEvents(){
-      // Entradas
-      $("desc").addEventListener("input", e=>{state.load.desc=e.target.value; save(); renderAll();});
-      $("peso").addEventListener("input", e=>{state.load.weightKg=toNum(e.target.value); save(); renderAll();});
-      $("cg").addEventListener("input", e=>{state.load.cg=Math.max(0,Math.min(50,toNum(e.target.value))); e.target.value=state.load.cg; save(); renderAll();});
-      ["L","W","H"].forEach(id=>$(id).addEventListener("input", e=>{state.load[id]=e.target.value; save();}));
-
-      $("rigType").addEventListener("change", e=>{state.rig.type=e.target.value; save(); renderAll();});
-      $("slingCount").addEventListener("input", e=>{state.rig.count=Math.max(1,Math.round(toNum(e.target.value))); e.target.value=state.rig.count; save(); renderAll();});
-      $("slingCap").addEventListener("input", e=>{state.rig.capKg=toNum(e.target.value); save(); renderAll();});
-      $("angle").addEventListener("input", e=>{state.rig.angle=toNum(e.target.value); $("angleVal").textContent=state.rig.angle+"°"; save(); renderAll();});
-
-      $("crane").addEventListener("change", e=>{
-        state.selectedCrane=e.target.value;
-        const c = CRANES[state.selectedCrane];
-        $("rangeInfo").textContent = `Carta: ${c.minRadius}–${c.maxRadius} m`;
-        const rr = $("raioRange"); rr.min=c.minRadius; rr.max=c.maxRadius;
-        state.crane.radius = Math.min(c.maxRadius, Math.max(c.minRadius, state.crane.radius));
-        rr.value = state.crane.radius; $("raio").value=state.crane.radius;
-        save(); renderAll();
-      });
-
-      $("raio").addEventListener("input", e=>{
-        const c = CRANES[state.selectedCrane];
-        state.crane.radius = Math.min(c.maxRadius, Math.max(c.minRadius, toNum(e.target.value)));
-        e.target.value = state.crane.radius;
-        $("raioRange").value = state.crane.radius; $("raioTxt").textContent=state.crane.radius.toFixed(1)+" m";
-        save(); renderAll();
-      });
-      $("boomAngle").addEventListener("input", e=>{
-        state.crane.boomAngle = Math.max(10, Math.min(85, toNum(e.target.value)));
-        e.target.value = state.crane.boomAngle;
-        $("boomRange").value = state.crane.boomAngle; $("boomTxt").textContent=state.crane.boomAngle+"°";
-        save(); renderAll();
-      });
-      $("vento").addEventListener("input", e=>{state.env.windKmh=toNum(e.target.value); save(); renderAll();});
-      $("solo").addEventListener("change", e=>{state.env.ground=e.target.value; save();});
-      $("temp").addEventListener("input", e=>{state.env.tempC=toNum(e.target.value); save();});
-
-      // Sliders espelhados
-      $("raioRange").addEventListener("input", e=>{
-        const c = CRANES[state.selectedCrane];
-        state.crane.radius = Math.min(c.maxRadius, Math.max(c.minRadius, toNum(e.target.value)));
-        $("raio").value = state.crane.radius; $("raioTxt").textContent=state.crane.radius.toFixed(1)+" m";
-        save(); renderAll();
-      });
-      $("boomRange").addEventListener("input", e=>{
-        state.crane.boomAngle = Math.max(10, Math.min(85, toNum(e.target.value)));
-        $("boomAngle").value = state.crane.boomAngle; $("boomTxt").textContent=state.crane.boomAngle+"°";
-        save(); renderAll();
-      });
-
-      // Canvas drag/touch
-      const canvas = $("canvas");
-      let dragging=false;
-      const getPt = (ev)=>{
-        const rect = canvas.getBoundingClientRect();
-        const p = ev.touches? ev.touches[0] : ev;
-        return {x:p.clientX-rect.left, y:p.clientY-rect.top};
-      };
-      const updateFromCanvas = (ev)=>{
-        const w = canvas.width, h=canvas.height;
-        const cx=w/2, cy=h-60, scale=Math.min(w,h)/50;
-        const {x,y} = getPt(ev);
-        const dx = x-(cx+10), dy=(cy-35)-y;
-        const r = Math.sqrt(dx*dx+dy*dy)/scale;
-        const ang = Math.atan2(dy,dx)*180/Math.PI;
-        const c = CRANES[state.selectedCrane];
-        state.crane.radius = Math.min(c.maxRadius, Math.max(c.minRadius, r));
-        state.crane.boomAngle = Math.min(85, Math.max(10, ang));
-        $("raio").value = state.crane.radius; $("raioRange").value=state.crane.radius; $("raioTxt").textContent=state.crane.radius.toFixed(1)+" m";
-        $("boomAngle").value = state.crane.boomAngle; $("boomRange").value=state.crane.boomAngle; $("boomTxt").textContent=state.crane.boomAngle+"°";
-        save(); renderAll();
-      };
-      canvas.addEventListener("mousedown", ev=>{dragging=true; updateFromCanvas(ev);});
-      canvas.addEventListener("mousemove", ev=>{if(dragging) updateFromCanvas(ev);});
-      canvas.addEventListener("mouseup", ()=>dragging=false);
-      canvas.addEventListener("mouseleave", ()=>dragging=false);
-      canvas.addEventListener("touchstart", ev=>{dragging=true; updateFromCanvas(ev);}, {passive:false});
-      canvas.addEventListener("touchmove", ev=>{ev.preventDefault(); if(dragging) updateFromCanvas(ev);}, {passive:false});
-      canvas.addEventListener("touchend", ()=>dragging=false);
-
-      // Export/Import/Print/Reset
-      $("btnExport").addEventListener("click", ()=>{
-        const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href=url; a.download="rigging-plan.json"; a.click();
-        URL.revokeObjectURL(url);
-      });
-      $("fileImport").addEventListener("change", (e)=>{
-        const f = e.target.files?.[0]; if(!f) return;
-        const reader = new FileReader();
-        reader.onload=()=>{
-          try{
-            const data=JSON.parse(String(reader.result));
-            Object.assign(state, data);
-            save(); initUI();
-          }catch{ alert("Arquivo inválido."); }
-        };
-        reader.readAsText(f);
-      });
-      $("btnPrint").addEventListener("click", ()=>window.print());
-      $("btnReset").addEventListener("click", ()=>{
-        localStorage.removeItem(STORAGE_KEY);
-        location.reload();
-      });
-    }
-
-    // ===== Render =====
-    function renderAll(){
-      const calc = compute();
-      updateAlert(calc);
-      updateResumo(calc);
-      updateRelatorio(calc);
-      drawCanvas(calc);
-    }
-
-    // Boot
-    restore();
-    window.addEventListener("load", initUI);
-  </script>
+  // Primeira render
+  draw();
+})();
+</script>
 </body>
 </html>
