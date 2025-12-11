@@ -181,6 +181,8 @@
     const radius = parseFloat(state.radius.value);
     const MAD = 6; // Mínima Distância de Aproximação (6m, conservador)
     const scale = 7; // Escala de conversão (m para px)
+    // Base do guindaste (Definida aqui para uso no cálculo do risco elétrico)
+    const baseX = 140, baseY = 420;
     const powerLineX = baseX + powerDist * scale;
     const powerLineY = 100; // Altura da linha de energia
     const safeZoneX = powerLineX - MAD * scale;
@@ -212,7 +214,6 @@
     ctx.stroke();
 
     // Base do guindaste
-    const baseX = 140, baseY = 420;
     ctx.fillStyle = '#1b2742';
     ctx.fillRect(baseX-40, baseY-30, 80, 30);
     ctx.fillStyle = '#223355';
