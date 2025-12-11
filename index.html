@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>LiftingPlanMonitor — Versão Revertida (Sem Zonas)</title>
+	<title>LiftingPlanMonitor — Versão 2.0 (Com Zonas de Risco)</title>
 <style>
   :root{
     --bg:#0b1220; --panel:#121a2b; --line:#1f2a44; --txt:#eaf0ff; --muted:#9db0c9;
-    --accent:#60a5fa; --ok:#22c55e; --bad:#ef4444;
+    --accent:#60a5fa; --ok:#22c55e; --attention:#f59e0b; --warn:#ef4444; --bad:#dc2626;
   }
   *{box-sizing:border-box}
   body{margin:0; font-family:Inter, system-ui, Segoe UI, Roboto, Arial, Helvetica, sans-serif;
@@ -32,6 +32,9 @@
   .pill{padding:6px 10px; border-radius:999px; font-weight:600; font-size:12px;
         border:1px solid rgba(255,255,255,.12); display:inline-flex; align-items:center}
   .pill.ok{background:rgba(34,197,94,.12); color:#b7f7cb}
+  .pill.attention{background:rgba(255,204,0,.12); color:#ffcc00}
+  .pill.warn{background:rgba(245,158,11,.12); color:#fcd34d}
+  .pill.bad{background:rgba(220,38,38,.12); color:#fca5a5}
   .pill.bad{background:rgba(239,68,68,.12); color:#ffc7c7}
   .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px}
   .k{background:#0f1729; border:1px solid var(--line); border-radius:12px; padding:10px}
@@ -44,8 +47,8 @@
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>LiftingPlanMonitor — Versão Revertida (sem zonas de cores)</h1>
+	<div class="wrap">
+    <h1>LiftingPlanMonitor — Versão 2.0 (Com Zonas de Risco)</h1>
     <div class="grid">
       <div class="card">
         <canvas id="scene" width="900" height="520"></canvas>
@@ -68,35 +71,42 @@
           </div>
         </div>
 
-        <div class="row3" style="margin-top:10px">
-          <div class="input">
-            <label>Ângulo da lança (°)</label>
-            <input type="range" id="angle" min="20" max="80" step="1" value="55">
-          </div>
-          <div class="input">
-            <label>Raio (m)</label>
-            <input type="range" id="radius" min="5" max="60" step="1" value="24">
-          </div>
-          <div class="input">
-            <label>Comprimento da lança (m)</label>
-            <input type="range" id="boomLen" min="20" max="70" step="1" value="42">
-          </div>
-        </div>
+	        <div class="row3" style="margin-top:10px">
+	          <div class="input">
+	            <label>Distância da Linha de Energia (m) <span id="powerDistVal">15</span></label>
+	            <input type="range" id="powerDist" min="0" max="30" step="1" value="15">
+	          </div>
+	          <div class="input">
+	            <label>Ângulo da lança (°) <span id="angleVal">55</span></label>
+	            <input type="range" id="angle" min="20" max="80" step="1" value="55">
+	          </div>
+	          <div class="input">
+	            <label>Raio (m) <span id="radiusVal">24</span></label>
+	            <input type="range" id="radius" min="5" max="60" step="1" value="24">
+	          </div>
+	        </div>
+	        <div class="row3" style="margin-top:10px">
+	          <div class="input">
+	            <label>Comprimento da lança (m) <span id="boomLenVal">42</span></label>
+	            <input type="range" id="boomLen" min="20" max="70" step="1" value="42">
+	          </div>
+	        </div>
 
-        <div class="status">
-          <span id="statusPill" class="pill">Status</span>
+	        <div class="status">
+	          <span id="statusPill" class="pill">Status de Carga</span>
+	          <span id="powerPill" class="pill">Risco Elétrico</span>
           <button id="reset" class="btn" title="Resetar valores">Resetar</button>
         </div>
 
-        <div class="kpi">
-          <div class="k"><h3>Utilização</h3><p id="kUtil">—</p></div>
-          <div class="k"><h3>Margem</h3><p id="kMarg">—</p></div>
-          <div class="k"><h3>Capacidade @raio</h3><p id="kCap">—</p></div>
-        </div>
-
-        <div class="foot">
+		        <div class="kpi">
+		          <div class="k"><h3>Utilização</h3><p id="kUtil">—</p></div>
+		          <div class="k"><h3>Margem</h3><p id="kMarg">—</p></div>
+		          <div class="k"><h3>Capacidade @raio</h3><p id="kCap">—</p></div>
+		          <div class="k"><h3>Risco Elétrico</h3><p id="kPowerRisk">—</p></div>
+		        </div>
+		        <div class="foot">
           *Informe a capacidade <b>no raio</b> a partir da tabela oficial do fabricante (ex.: Liebherr LTM 1220-5.2).
-          Esta versão não aplica política de 75–80% nem altera a cor da lança.
+	*A política de Zonas de Risco (80%, 90%, 100%) está ativa e a cor da lança é alterada dinamicamente.
         </div>
       </div>
     </div>
@@ -105,7 +115,14 @@
 <script>
 (function(){
   const $ = (id)=>document.getElementById(id);
-  const state = {
+    const state = {
+    angleVal: $('angleVal'),
+    radiusVal: $('radiusVal'),
+    boomLenVal: $('boomLenVal'),
+    powerDist: $('powerDist'),
+    powerDistVal: $('powerDistVal'),
+    powerPill: $('powerPill'),
+    kPowerRisk: $('kPowerRisk'),
     load: $('load'),
     capacity: $('capacity'),
     angle: $('angle'),
@@ -124,9 +141,23 @@
     const load = parseFloat(state.load.value||0);
     const cap  = Math.max(0.0001, parseFloat(state.capacity.value||0));
     const util = load / cap;                 // fração
+    let zone = 'ok';
+    let zoneText = 'PERMITIDO - Abaixo de 80% da capacidade.';
+
+    if (util >= 0.8 && util < 0.9) {
+      zone = 'attention';
+      zoneText = 'ATENÇÃO - Entre 80% e 90% da capacidade.';
+    } else if (util >= 0.9 && util <= 1.0) {
+      zone = 'warn';
+      zoneText = 'CRÍTICO - Entre 90% e 100% da capacidade.';
+    } else if (util > 1.0) {
+      zone = 'bad';
+      zoneText = 'NÃO PERMITIDO - Excede a capacidade.';
+    }
+
     const margin = Math.max(0, cap - load);  // t
-    const allowed = util < 1.0;              // permitido se abaixo de 100% da curva
-    return {load, cap, util, margin, allowed};
+    const allowed = util <= 1.0;              // permitido se abaixo de 100% da curva
+    return {load, cap, util, margin, allowed, zone, zoneText};
   }
 
   function draw(){
@@ -134,9 +165,43 @@
     const ang  = parseFloat(state.angle.value)*Math.PI/180;
     const boom = parseFloat(state.boomLen.value);
 
-    const {load, cap, util, margin, allowed} = compute();
+    const {load, cap, util, margin, allowed, zone, zoneText} = compute();
+    const {powerZone, powerZoneText} = computePowerRisk();
+
+    // Atualiza valores dos sliders
+    state.angleVal.textContent = state.angle.value;
+    state.radiusVal.textContent = state.radius.value;
+    state.boomLenVal.textContent = state.boomLen.value;
+    state.powerDistVal.textContent = state.powerDist.value;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Variáveis para o Risco Elétrico
+    const powerDist = parseFloat(state.powerDist.value);
+    const radius = parseFloat(state.radius.value);
+    const MAD = 6; // Mínima Distância de Aproximação (6m, conservador)
+    const scale = 7; // Escala de conversão (m para px)
+    const powerLineX = baseX + powerDist * scale;
+    const powerLineY = 100; // Altura da linha de energia
+    const safeZoneX = powerLineX - MAD * scale;
+
+    // Desenha a Zona de Risco Elétrico (MAD)
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
+    ctx.fillRect(safeZoneX, 0, MAD * scale, canvas.height);
+
+    // Desenha a Linha de Energia
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(powerLineX, 0);
+    ctx.lineTo(powerLineX, canvas.height);
+    ctx.stroke();
+    ctx.fillStyle = '#ffcc00';
+    ctx.beginPath();
+    ctx.arc(powerLineX, powerLineY, 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.fillText(`Linha de Energia (${powerDist}m)`, powerLineX + 10, powerLineY);
 
     // chão
     ctx.fillStyle = '#0c1426';
@@ -153,12 +218,18 @@
     ctx.fillStyle = '#223355';
     ctx.fillRect(baseX-22, baseY-60, 44, 30);
 
-    // Lança (cor fixa, sem zonas)
+    // Lança (colorida por zona de risco)
     const lenPx = boom*7; // escala simples
     const endX = baseX + lenPx * Math.cos(Math.PI/2 - ang);
     const endY = baseY - lenPx * Math.sin(Math.PI/2 - ang);
 
-    ctx.strokeStyle = '#60a5fa'; // cor única
+    const boomColor = {
+      ok: '#22c55e',
+      attention: '#f59e0b',
+      warn: '#ef4444',
+      bad: '#dc2626'
+    }[zone] || '#60a5fa';
+    ctx.strokeStyle = boomColor;
     ctx.lineWidth = 10; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(baseX, baseY-60); ctx.lineTo(endX, endY); ctx.stroke();
 
@@ -176,23 +247,46 @@
     ctx.fillText(`Capacidade@raio: ${cap.toFixed(1)} t`, endX+10, endY+26);
     ctx.fillText(`Utilização: ${(util*100).toFixed(0)}%`, endX+10, endY+42);
 
-    // Status (apenas por capacidade)
-    updateStatus(allowed);
+    // Status (por zona de risco de carga)
+    updateStatus(state.pill, zone, zoneText);
 
-    // KPIs
-    state.kUtil.textContent = (util*100).toFixed(1) + '%';
-    state.kMarg.textContent = margin.toFixed(1) + ' t';
-    state.kCap.textContent  = cap.toFixed(1) + ' t';
+    // Status (por zona de risco elétrico)
+    updateStatus(state.powerPill, powerZone, powerZoneText);
+
+
+    state.kPowerRisk.textContent = powerZoneText;
+
   }
 
-  function updateStatus(allowed){
-    const p = state.pill;
-    p.className = 'pill ' + (allowed ? 'ok' : 'bad');
-    p.textContent = allowed ? 'PERMITIDO — abaixo da curva do fabricante'
-                            : 'NÃO PERMITIDO — excede a curva do fabricante';
+  function updateStatus(pill, zone, text){
+    pill.className = 'pill ' + zone;
+    pill.textContent = text;
   }
 
-  ['load','capacity','angle','radius','boomLen'].forEach(id=>{
+  function computePowerRisk(){
+    const powerDist = parseFloat(state.powerDist.value);
+    const radius = parseFloat(state.radius.value);
+    const MAD = 6; // Mínima Distância de Aproximação (6m)
+
+    let powerZone = 'ok';
+    let powerZoneText = 'SEGURO - Distância > 6m.';
+
+    // O risco é se o raio de operação (horizontal reach) estiver dentro da MAD da linha de energia.
+    // Assumindo que a linha de energia está à direita do guindaste.
+    const distanceToLine = Math.abs(powerDist - radius);
+
+    if (distanceToLine < MAD) {
+      powerZone = 'bad';
+      powerZoneText = `NÃO PERMITIDO - Distância (${distanceToLine.toFixed(1)}m) < MAD (${MAD}m).`;
+    } else if (distanceToLine < MAD + 5) { // Zona de atenção, 5m além da MAD
+      powerZone = 'attention';
+      powerZoneText = `ATENÇÃO - Próximo à MAD (${distanceToLine.toFixed(1)}m).`;
+    }
+
+    return {powerZone, powerZoneText};
+  }
+
+  ['load','capacity','angle','radius','boomLen','powerDist'].forEach(id=>{
     state[id].addEventListener('input', draw);
   });
 
@@ -202,6 +296,7 @@
     state.angle.value = 55;
     state.radius.value = 24;
     state.boomLen.value = 42;
+    state.powerDist.value = 15;
     draw();
   });
 
